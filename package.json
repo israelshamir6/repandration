@@ -1,0 +1,10 @@
+{
+  "name": "rep-and-ration",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/database": "latest",
+    "@netlify/functions": "latest",
+    "stripe": "^18.0.0"
+  }
+}
