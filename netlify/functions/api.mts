@@ -110,7 +110,7 @@ async function canWrite(db: any, op: string, path: string, uid: string, oldDoc: 
 }
 
 /* ---------- handler ---------- */
-export default async (req: Request, context: Context) => {
+async function handle(req: Request, context: Context): Promise<Response> {
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/api\/?/, "");
   const db = getDatabase();
@@ -301,6 +301,15 @@ export default async (req: Request, context: Context) => {
     return fail(400, "bad op");
   }
   return fail(404, "not found");
+}
+
+export default async (req: Request, context: Context) => {
+  try { return await handle(req, context); }
+  catch (e: any) {
+    console.error(e);
+    const stripeKey = e && (e.type === "StripeAuthenticationError" || /api key/i.test(String(e.message)));
+    return fail(stripeKey ? 503 : 500, stripeKey ? "Payments are temporarily unavailable. Please try again soon." : "Something went wrong. Please try again.");
+  }
 };
 
 export const config: Config = { path: "/api/*" };
