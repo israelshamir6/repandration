@@ -204,7 +204,7 @@ export default async (req: Request, context: Context) => {
   if (route === "billing/checkout") {
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
     // One free trial per email, even if the account was deleted and re-created.
-    let hadTrial = !!hadTrial;
+    let hadTrial = !!me.had_trial;
     if (!hadTrial) {
       for (const c of (await s.customers.list({ email: me.email, limit: 10 })).data) {
         if ((await s.subscriptions.list({ customer: c.id, status: "all", limit: 20 })).data.some(x => x.trial_start)) { hadTrial = true; break; }
