@@ -203,14 +203,22 @@ export default async (req: Request, context: Context) => {
   }
   if (route === "billing/checkout") {
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
+    // One free trial per email, even if the account was deleted and re-created.
+    let hadTrial = !!hadTrial;
+    if (!hadTrial) {
+      for (const c of (await s.customers.list({ email: me.email, limit: 10 })).data) {
+        if ((await s.subscriptions.list({ customer: c.id, status: "all", limit: 20 })).data.some(x => x.trial_start)) { hadTrial = true; break; }
+      }
+      if (hadTrial) await db.sql`UPDATE users SET had_trial = true WHERE id = ${me.id}`;
+    }
     const cs = await s.checkout.sessions.create({
       mode: "subscription",
       client_reference_id: me.id,
       ...(me.stripe_customer_id ? { customer: me.stripe_customer_id } : { customer_email: me.email }),
       line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: PRICE_CENTS, recurring: { interval: "month" }, product_data: { name: "Rep & Ration" } } }],
       payment_method_collection: "always",
-      subscription_data: { metadata: { uid: me.id }, ...(me.had_trial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
-      custom_text: { submit: { message: me.had_trial ? "You'll be charged $12.99 today and every month until you cancel." : "Your card won't be charged today. After your 7-day free trial, it's charged $12.99 and every month after that until you cancel." } },
+      subscription_data: { metadata: { uid: me.id }, ...(hadTrial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
+      custom_text: { submit: { message: hadTrial ? "You'll be charged $12.99 today and every month until you cancel." : "Your card won't be charged today. After your 7-day free trial, it's charged $12.99 and every month after that until you cancel." } },
       allow_promotion_codes: true,
       success_url: `${url.origin}/?checkout=success`,
       cancel_url: `${url.origin}/?checkout=cancel`
