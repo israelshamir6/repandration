@@ -36,7 +36,7 @@ Until Stripe keys are added, anyone who signs up gets in free (handy for testing
    - `STRIPE_WEBHOOK_SECRET` = your signing secret (mark as secret)
 6. Run `npx netlify-cli deploy --prod` again (or Deploys → Trigger deploy).
 
-Price ($30/month) and trial (7 days, once per customer) are set in `netlify/functions/api.mts` (`PRICE_CENTS`, `TRIAL_DAYS`).
+Price ($12.99/month) and trial (7 days, once per customer) are set in `netlify/functions/api.mts` (`PRICE_CENTS`, `TRIAL_DAYS`).
 
 Test with card `4242 4242 4242 4242` while using `sk_test_` keys, then swap to live keys.
 

@@ -5,7 +5,7 @@ import { scrypt as _scrypt, randomBytes, timingSafeEqual, createHash } from "nod
 import { promisify } from "node:util";
 
 const scrypt = promisify(_scrypt) as (p: string, s: Buffer, n: number) => Promise<Buffer>;
-const PRICE_CENTS = 3000;
+const PRICE_CENTS = 1299;
 const TRIAL_DAYS = 7;
 const SESSION_DAYS = 60;
 
@@ -46,6 +46,18 @@ const publicUser = (u: any) => ({
   id: u.id, email: u.email, name: u.name,
   sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: subActive(u), billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial }
 });
+
+
+async function saveSub(db: any, sub: Stripe.Subscription) {
+  const uid = (sub.metadata && sub.metadata.uid) || null;
+  const anySub: any = sub;
+  const periodEnd = anySub.current_period_end ?? anySub.items?.data?.[0]?.current_period_end ?? null;
+  const cust = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  await db.sql`UPDATE users SET sub_status = ${sub.status}, trial_end = ${sub.trial_end ? new Date(sub.trial_end * 1000) : null},
+    period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}
+    WHERE id = ${uid} OR stripe_customer_id = ${cust}`;
+}
+const SUB_RANK: Record<string, number> = { active: 5, trialing: 5, past_due: 4, unpaid: 3, incomplete: 2, canceled: 1, incomplete_expired: 0 };
 
 /* ---------- document store with server-side access rules ---------- */
 const validPath = (p: unknown): p is string => typeof p === "string" && /^[A-Za-z0-9_\-.~:@+]{1,200}(\/[A-Za-z0-9_\-.~:@+]{1,200}){1,15}$/.test(p) && p.split("/").length % 2 === 0;
@@ -111,15 +123,7 @@ export default async (req: Request, context: Context) => {
     let event: Stripe.Event;
     try { event = await s.webhooks.constructEventAsync(await req.text(), req.headers.get("stripe-signature") || "", secret); }
     catch { return fail(400, "bad signature"); }
-    const setSub = async (sub: Stripe.Subscription) => {
-      const uid = (sub.metadata && sub.metadata.uid) || null;
-      const anySub: any = sub;
-      const periodEnd = anySub.current_period_end ?? anySub.items?.data?.[0]?.current_period_end ?? null;
-      const cust = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-      await db.sql`UPDATE users SET sub_status = ${sub.status}, trial_end = ${sub.trial_end ? new Date(sub.trial_end * 1000) : null},
-        period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}
-        WHERE id = ${uid} OR stripe_customer_id = ${cust}`;
-    };
+    const setSub = (sub: Stripe.Subscription) => saveSub(db, sub);
     if (event.type === "checkout.session.completed") {
       const cs = event.data.object as Stripe.Checkout.Session;
       if (cs.client_reference_id && cs.customer) await db.sql`UPDATE users SET stripe_customer_id = ${String(cs.customer)} WHERE id = ${cs.client_reference_id}`;
@@ -206,12 +210,30 @@ export default async (req: Request, context: Context) => {
       line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: PRICE_CENTS, recurring: { interval: "month" }, product_data: { name: "Rep & Ration" } } }],
       payment_method_collection: "always",
       subscription_data: { metadata: { uid: me.id }, ...(me.had_trial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
-      custom_text: { submit: { message: me.had_trial ? "You'll be charged $30 today and every month until you cancel." : "Your card won't be charged today. After your 7-day free trial, it's charged $30 and every month after that until you cancel." } },
+      custom_text: { submit: { message: me.had_trial ? "You'll be charged $12.99 today and every month until you cancel." : "Your card won't be charged today. After your 7-day free trial, it's charged $12.99 and every month after that until you cancel." } },
       allow_promotion_codes: true,
       success_url: `${url.origin}/?checkout=success`,
       cancel_url: `${url.origin}/?checkout=cancel`
     });
     return json({ url: cs.url });
+  }
+  if (route === "billing/sync") {
+    // Pull the member's subscription straight from Stripe (backup for a missed or failed webhook).
+    const s = stripe(); if (!s) return json({ user: publicUser(me) });
+    const custIds: string[] = me.stripe_customer_id ? [me.stripe_customer_id] : (await s.customers.list({ email: me.email, limit: 10 })).data.map(c => c.id);
+    let best: Stripe.Subscription | null = null;
+    for (const cid of custIds) {
+      for (const sub of (await s.subscriptions.list({ customer: cid, status: "all", limit: 20 })).data) {
+        if (!me.stripe_customer_id && sub.metadata?.uid !== me.id) continue;
+        if (!best || (SUB_RANK[sub.status] ?? 0) > (SUB_RANK[best.status] ?? 0) || ((SUB_RANK[sub.status] ?? 0) === (SUB_RANK[best.status] ?? 0) && sub.created > best.created)) best = sub;
+      }
+    }
+    if (best) {
+      if (!best.metadata?.uid) await s.subscriptions.update(best.id, { metadata: { uid: me.id } });
+      await saveSub(db, { ...best, metadata: { ...(best.metadata || {}), uid: me.id } } as Stripe.Subscription);
+    }
+    const [u] = await db.sql`SELECT * FROM users WHERE id = ${me.id}`;
+    return json({ user: publicUser(u) });
   }
   if (route === "billing/portal") {
     const s = stripe(); if (!s || !me.stripe_customer_id) return fail(400, "No billing account yet.");
