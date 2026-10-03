@@ -1,6 +1,9 @@
 [build]
   publish = "public"
-  command = "echo 'static site + functions'"
+  command = "node src/tools/fetch-wger.mjs"
+
+[functions]
+  node_bundler = "esbuild"
 
 [[headers]]
   for = "/*"
@@ -8,4 +11,23 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "bluetooth=(self)"
+    Permissions-Policy = "camera=(self), microphone=(self), bluetooth=(self)"
+
+[[headers]]
+  for = "/ex/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[functions."video-process-background"]
+  external_node_modules = ["ffmpeg-static"]
+  included_files = ["node_modules/ffmpeg-static/ffmpeg"]

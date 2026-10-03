@@ -1,12 +1,15 @@
 import type { Context, Config } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import Stripe from "stripe";
+import { ACTIVE, PLANS, isPlan, money, stripe, priceFor, planOfSub, sendMail, mailReady, vapid, pushTo, type PlanKey } from "../lib/shared.mts";
+import { searchFoods, barcode, aiMeal, aiReady } from "../lib/food.mts";
+import { videoRoutes, deleteVideoBlobs } from "../lib/videos.mts";
 import { scrypt as _scrypt, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
 
 const scrypt = promisify(_scrypt) as (p: string, s: Buffer, n: number) => Promise<Buffer>;
-const PRICE_CENTS = 1299;
 const TRIAL_DAYS = 7;
+const AI_PER_DAY = 40;
 const SESSION_DAYS = 60;
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -34,18 +37,28 @@ function readCookie(req: Request, name: string) {
   const m = c.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
   return m ? m[1] : null;
 }
-function stripe() {
-  const key = Netlify.env.get("STRIPE_SECRET_KEY");
-  return key ? new Stripe(key) : null;
+/** Who can use the app: their own subscription, or a seat on an active family plan. Never free when the payment key is missing. */
+async function access(db: any, u: any): Promise<{ active: boolean; via?: string; plan?: string; owner?: string }> {
+  if (!u || !Netlify.env.get("STRIPE_SECRET_KEY")) return { active: false };
+  if (ACTIVE.includes(u.sub_status || "")) return { active: true, via: "own", plan: u.plan || "individual_month" };
+  const [f] = await db.sql`SELECT o.name, o.email, o.plan FROM family_members m JOIN users o ON o.id = m.owner_id
+    WHERE m.email = ${u.email} AND o.sub_status IN ('trialing','active','past_due') AND o.plan LIKE 'family%' LIMIT 1`;
+  if (f) return { active: true, via: "family", plan: f.plan, owner: f.name || f.email };
+  return { active: false };
 }
-function subActive(u: any) {
-  if (!Netlify.env.get("STRIPE_SECRET_KEY")) return false; // never give free access if the payment key is missing
-  return u && ["trialing", "active", "past_due"].includes(u.sub_status || "");
+async function publicUser(db: any, u: any) {
+  const a = await access(db, u);
+  const plan = a.plan || u.plan || null;
+  return {
+    id: u.id, email: u.email, name: u.name,
+    sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: a.active, via: a.via || null, familyOwner: a.owner || null,
+      plan, ownPlan: u.plan || (ACTIVE.includes(u.sub_status || "") ? "individual_month" : null), legacy: ACTIVE.includes(u.sub_status || "") && !u.plan,
+      billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial },
+    coach: a.active && a.via === "own" && String(plan || "").startsWith("coach") ? { clients: PLANS[plan as PlanKey]?.clients || 0 } : null,
+    family: a.active && a.via === "own" && String(plan || "").startsWith("family") ? { seats: 4 } : null,
+    features: { ai: aiReady(), mail: mailReady() }
+  };
 }
-const publicUser = (u: any) => ({
-  id: u.id, email: u.email, name: u.name,
-  sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: subActive(u), billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial }
-});
 
 
 async function saveSub(db: any, sub: Stripe.Subscription) {
@@ -53,8 +66,10 @@ async function saveSub(db: any, sub: Stripe.Subscription) {
   const anySub: any = sub;
   const periodEnd = anySub.current_period_end ?? anySub.items?.data?.[0]?.current_period_end ?? null;
   const cust = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const anyPrice: any = anySub.items?.data?.[0]?.price;
+  const plan = anyPrice && anyPrice.lookup_key ? planOfSub(sub) : (sub.metadata?.plan && isPlan(sub.metadata.plan) ? sub.metadata.plan : null);
   await db.sql`UPDATE users SET sub_status = ${sub.status}, trial_end = ${sub.trial_end ? new Date(sub.trial_end * 1000) : null},
-    period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}
+    period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}, plan = ${plan}
     WHERE id = ${uid} OR stripe_customer_id = ${cust}`;
 }
 
@@ -69,6 +84,13 @@ async function checkCustomer(s: Stripe, db: any, me: any) {
   }
   await db.sql`UPDATE users SET stripe_customer_id = NULL, sub_status = NULL, trial_end = NULL, period_end = NULL, had_trial = false WHERE id = ${me.id}`;
   me.stripe_customer_id = null; me.sub_status = null; me.trial_end = null; me.period_end = null; me.had_trial = false;
+}
+async function bestSub(s: Stripe, me: any): Promise<Stripe.Subscription | null> {
+  if (!me.stripe_customer_id) return null;
+  let best: Stripe.Subscription | null = null;
+  for (const sub of (await s.subscriptions.list({ customer: me.stripe_customer_id, status: "all", limit: 20 })).data)
+    if (!best || (SUB_RANK[sub.status] ?? 0) > (SUB_RANK[best.status] ?? 0) || ((SUB_RANK[sub.status] ?? 0) === (SUB_RANK[best.status] ?? 0) && sub.created > best.created)) best = sub;
+  return best;
 }
 const SUB_RANK: Record<string, number> = { active: 5, trialing: 5, past_due: 4, unpaid: 3, incomplete: 2, canceled: 1, incomplete_expired: 0 };
 
@@ -122,12 +144,45 @@ async function canWrite(db: any, op: string, path: string, uid: string, oldDoc: 
   return "not allowed";
 }
 
+/* ---------- coach helpers ---------- */
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const coachCode = () => Array.from(randomBytes(8)).map(b => CODE_CHARS[b % CODE_CHARS.length]).join("");
+const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+async function userDocs(db: any, uid: string) {
+  const rows = await db.sql`SELECT path, data FROM docs WHERE path IN (${`data/users/${uid}/profile`}, ${`data/users/${uid}/food`}, ${`data/users/${uid}/training`})`;
+  const o: any = {};
+  for (const r of rows) o[r.path.split("/").pop()] = r.data;
+  return o;
+}
+function clientSummary(d: any, share: any) {
+  const now = Date.now(), since = (n: number) => dayKey(new Date(now - n * 864e5));
+  const log = (d.food && d.food.log) || {}, sessions = (d.training && d.training.sessions) || [], weights = (d.training && d.training.weights) || [];
+  const w7 = since(6);
+  const foodDays = Object.keys(log).filter(k => k >= w7 && (log[k] || []).length);
+  const kcal = foodDays.map(k => (log[k] || []).reduce((a: number, e: any) => a + (e.kcal || 0) * (e.q || 1), 0));
+  const ws = [...weights].sort((a: any, b: any) => (a.date < b.date ? -1 : 1));
+  const recentW = ws.filter((x: any) => x.date >= since(30));
+  return {
+    workouts7: share.workouts ? sessions.filter((s: any) => s.date >= w7).length : null,
+    lastWorkout: share.workouts && sessions.length ? sessions[sessions.length - 1].date : null,
+    foodDays7: share.food ? foodDays.length : null,
+    avgKcal7: share.food && kcal.length ? Math.round(kcal.reduce((a: number, b: number) => a + b, 0) / kcal.length) : null,
+    weightKg: share.weight && ws.length ? ws[ws.length - 1].kg : null,
+    weightChange30: share.weight && recentW.length > 1 ? Math.round((recentW[recentW.length - 1].kg - recentW[0].kg) * 10) / 10 : null,
+    goal: d.profile ? d.profile.goal : null
+  };
+}
+async function linkFor(db: any, me: any, otherId: string) {
+  const [l] = await db.sql`SELECT * FROM coach_links WHERE (coach_id = ${me.id} AND client_id = ${otherId}) OR (client_id = ${me.id} AND coach_id = ${otherId})`;
+  return l || null;
+}
+
 /* ---------- handler ---------- */
 async function handle(req: Request, context: Context): Promise<Response> {
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/api\/?/, "");
   const db = getDatabase();
-  const body: any = req.method === "POST" && route !== "stripe/webhook" ? await req.json().catch(() => ({})) : {};
+  const body: any = req.method === "POST" && route !== "stripe/webhook" && route !== "creator/chunk" ? await req.json().catch(() => ({})) : {};
 
   // Stripe webhook (raw body, signature checked)
   if (route === "stripe/webhook") {
@@ -136,16 +191,18 @@ async function handle(req: Request, context: Context): Promise<Response> {
     let event: Stripe.Event;
     try { event = await s.webhooks.constructEventAsync(await req.text(), req.headers.get("stripe-signature") || "", secret); }
     catch { return fail(400, "bad signature"); }
-    const setSub = (sub: Stripe.Subscription) => saveSub(db, sub);
     if (event.type === "checkout.session.completed") {
       const cs = event.data.object as Stripe.Checkout.Session;
       if (cs.client_reference_id && cs.customer) await db.sql`UPDATE users SET stripe_customer_id = ${String(cs.customer)} WHERE id = ${cs.client_reference_id}`;
-      if (cs.subscription) await setSub(await s.subscriptions.retrieve(String(cs.subscription)));
+      if (cs.subscription) await saveSub(db, await s.subscriptions.retrieve(String(cs.subscription)));
     } else if (event.type.startsWith("customer.subscription.")) {
-      await setSub(event.data.object as Stripe.Subscription);
+      await saveSub(db, event.data.object as Stripe.Subscription);
     }
     return json({ received: true });
   }
+
+  // public plan list for the landing page
+  if (route === "plans") return json({ plans: Object.fromEntries(Object.entries(PLANS).map(([k, p]) => [k, { amount: p.amount, interval: p.interval, label: p.label, clients: p.clients }])) });
 
   // auth without a session
   if (route === "auth/signup" || route === "auth/login") {
@@ -158,25 +215,30 @@ async function handle(req: Request, context: Context): Promise<Response> {
       if (exists.length) return fail(409, "An account with that email already exists. Log in instead.");
       const id = "u_" + newId(12);
       [user] = await db.sql`INSERT INTO users (id, email, name, pass_hash) VALUES (${id}, ${email}, ${String(body.name || "").trim().slice(0, 40)}, ${await hashPassword(pw)}) RETURNING *`;
+      if (mailReady()) {
+        const ok = await sendMail(email, "Welcome to Rep & Ration", [
+          `Hi${user.name ? " " + user.name : ""}, welcome to Rep & Ration.`,
+          "Your next step takes two minutes: answer a few questions and we'll build your calorie and macro targets, a 7-day menu, a grocery list and your workout week.",
+          "Tip: add Rep & Ration to your home screen so it opens like an app, and turn on reminders in Profile so you never miss a meal log or a workout."
+        ], { label: "Open Rep & Ration", url: url.origin });
+        if (ok) await db.sql`UPDATE users SET welcome_sent = true WHERE id = ${id}`;
+      }
     } else {
       [user] = await db.sql`SELECT * FROM users WHERE email = ${email}`;
       if (!user || !(await checkPassword(pw, user.pass_hash))) { await new Promise(r => setTimeout(r, 400)); return fail(401, "Email or password is incorrect."); }
     }
     const token = newId(32);
     await db.sql`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (${sha(token)}, ${user.id}, ${new Date(Date.now() + SESSION_DAYS * 864e5)})`;
-    return json({ user: publicUser(user) }, 200, { "set-cookie": cookieFor(token, SESSION_DAYS * 86400) });
+    return json({ user: await publicUser(db, user) }, 200, { "set-cookie": cookieFor(token, SESSION_DAYS * 86400) });
   }
   if (route === "auth/reset-request") {
-    const key = Netlify.env.get("RESEND_API_KEY"), from = Netlify.env.get("MAIL_FROM");
-    if (!key || !from) return fail(503, "Password reset email isn't set up yet. Contact support.");
+    if (!mailReady()) return fail(503, "Password reset email isn't set up yet. Email Repandration27@gmail.com and we'll help you get back in.");
     const email = String(body.email || "").trim().toLowerCase();
     const [u] = await db.sql`SELECT id FROM users WHERE email = ${email}`;
     if (u) {
       const token = newId(32);
       await db.sql`INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (${sha(token)}, ${u.id}, ${new Date(Date.now() + 3600e3)})`;
-      const link = `${url.origin}/?reset=${token}`;
-      await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-        body: JSON.stringify({ from, to: email, subject: "Reset your Rep & Ration password", text: `Reset your password within the next hour:\n\n${link}\n\nIf you didn't ask for this, ignore this email.` }) });
+      await sendMail(email, "Reset your Rep & Ration password", ["Someone asked to reset the password for your Rep & Ration account. The link below works for one hour.", "If you didn't ask for this, you can ignore this email; your password won't change."], { label: "Choose a new password", url: `${url.origin}/?reset=${token}` });
     }
     return json({ ok: true });
   }
@@ -193,7 +255,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
   // everything else needs a session
   const token = readCookie(req, "rr_session");
   const [me] = token ? await db.sql`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ${sha(token)} AND s.expires_at > NOW()` : [];
-  if (route === "me") return json({ user: me ? publicUser(me) : null });
+  if (route === "me") return json({ user: me ? await publicUser(db, me) : null });
   if (!me) return fail(401, "Log in first.");
 
   if (route === "auth/logout") {
@@ -211,12 +273,15 @@ async function handle(req: Request, context: Context): Promise<Response> {
       const subs = await s.subscriptions.list({ customer: me.stripe_customer_id, status: "all", limit: 20 });
       for (const sub of subs.data) if (!["canceled", "incomplete_expired"].includes(sub.status)) await s.subscriptions.cancel(sub.id);
     }
+    for (const v of await db.sql`SELECT id FROM videos WHERE user_id = ${me.id}`) await deleteVideoBlobs(v.id).catch(() => {});
     await db.sql`DELETE FROM docs WHERE path LIKE ${`data/users/${me.id}/%`}`;
+    await db.sql`DELETE FROM coach_msgs WHERE coach_id = ${me.id} OR client_id = ${me.id}`;
     await db.sql`DELETE FROM users WHERE id = ${me.id}`;
     return json({ ok: true }, 200, { "set-cookie": cookieFor("", 0) });
   }
   if (route === "billing/checkout") {
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
+    const plan: PlanKey = isPlan(body.plan) ? body.plan : "individual_month";
     await checkCustomer(s, db, me);
     // One free trial per email, even if the account was deleted and re-created.
     let hadTrial = !!me.had_trial;
@@ -226,23 +291,41 @@ async function handle(req: Request, context: Context): Promise<Response> {
       }
       if (hadTrial) await db.sql`UPDATE users SET had_trial = true WHERE id = ${me.id}`;
     }
+    const P = PLANS[plan], per = P.interval === "year" ? "year" : "month";
+    const tax = Netlify.env.get("STRIPE_TAX") === "on";
     const cs = await s.checkout.sessions.create({
       mode: "subscription",
       client_reference_id: me.id,
-      ...(me.stripe_customer_id ? { customer: me.stripe_customer_id } : { customer_email: me.email }),
-      line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: PRICE_CENTS, recurring: { interval: "month" }, product_data: { name: "Rep & Ration" } } }],
+      ...(me.stripe_customer_id ? { customer: me.stripe_customer_id, ...(tax ? { customer_update: { address: "auto", name: "auto" } } : {}) } : { customer_email: me.email }),
+      line_items: [{ quantity: 1, price: await priceFor(s, db, plan) }],
       payment_method_collection: "always",
-      subscription_data: { metadata: { uid: me.id }, ...(hadTrial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
-      custom_text: { submit: { message: hadTrial ? "You'll be charged $12.99 today and every month until you cancel." : "Your card won't be charged today. After your 7-day free trial, it's charged $12.99 and every month after that until you cancel." } },
+      ...(tax ? { automatic_tax: { enabled: true }, billing_address_collection: "required" as const } : {}),
+      subscription_data: { metadata: { uid: me.id, plan }, ...(hadTrial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
+      custom_text: { submit: { message: hadTrial ? `You'll be charged ${money(P.amount)} today and every ${per} until you cancel.` : `Your card won't be charged today. After your 7-day free trial it's charged ${money(P.amount)}, then every ${per} until you cancel.` } },
       allow_promotion_codes: true,
       success_url: `${url.origin}/?checkout=success`,
       cancel_url: `${url.origin}/?checkout=cancel`
     });
     return json({ url: cs.url });
   }
+  if (route === "billing/change") {
+    // Switch an existing membership to another plan (monthly ↔ annual, individual ↔ family/coach). Stripe prorates the difference.
+    const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
+    if (!isPlan(body.plan)) return fail(400, "Pick a plan.");
+    await checkCustomer(s, db, me);
+    const sub = await bestSub(s, me);
+    if (!sub || !ACTIVE.includes(sub.status)) return fail(400, "You don't have an active membership to change. Start one instead.");
+    const item = sub.items.data[0];
+    const price = await priceFor(s, db, body.plan);
+    if (item.price.id === price) return fail(400, "You're already on that plan.");
+    const upd = await s.subscriptions.update(sub.id, { items: [{ id: item.id, price }], proration_behavior: sub.status === "trialing" ? "none" : "create_prorations", metadata: { ...(sub.metadata || {}), uid: me.id, plan: body.plan } });
+    await saveSub(db, upd);
+    const [u] = await db.sql`SELECT * FROM users WHERE id = ${me.id}`;
+    return json({ user: await publicUser(db, u) });
+  }
   if (route === "billing/sync") {
     // Pull the member's subscription straight from Stripe (backup for a missed or failed webhook).
-    const s = stripe(); if (!s) return json({ user: publicUser(me) });
+    const s = stripe(); if (!s) return json({ user: await publicUser(db, me) });
     await checkCustomer(s, db, me);
     const custIds: string[] = me.stripe_customer_id ? [me.stripe_customer_id] : (await s.customers.list({ email: me.email, limit: 10 })).data.map(c => c.id);
     let best: Stripe.Subscription | null = null;
@@ -257,7 +340,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
       await saveSub(db, { ...best, metadata: { ...(best.metadata || {}), uid: me.id } } as Stripe.Subscription);
     }
     const [u] = await db.sql`SELECT * FROM users WHERE id = ${me.id}`;
-    return json({ user: publicUser(u) });
+    return json({ user: await publicUser(db, u) });
   }
   if (route === "billing/portal") {
     const s = stripe(); if (s) await checkCustomer(s, db, me);
@@ -265,7 +348,163 @@ async function handle(req: Request, context: Context): Promise<Response> {
     const ps = await s.billingPortal.sessions.create({ customer: me.stripe_customer_id, return_url: `${url.origin}/#profile` });
     return json({ url: ps.url });
   }
-  if (!subActive(me)) return fail(402, "Start your free trial to use this.");
+
+  const acc = await access(db, me);
+  if (!acc.active) return fail(402, "Start your free trial to use this.");
+  const plan = acc.plan || "";
+  const vr = await videoRoutes(route, req, url, db, me, acc.via === "own" && plan.startsWith("coach"), body, aiReady());
+  if (vr) return vr;
+
+  /* ----- food search, barcodes, AI ----- */
+  if (route === "food/search") return json({ items: await searchFoods(db, String(body.q || "")) });
+  if (route === "food/barcode") {
+    const it = await barcode(db, String(body.code || ""));
+    return it ? json({ item: it }) : fail(404, "We couldn't find that barcode. Search by name or add it as a custom food.");
+  }
+  if (route === "food/ai") {
+    if (!aiReady()) return fail(503, "Photo and voice logging are switching on soon. Search or scan a barcode for now.");
+    if (body.image && String(body.image).length > 4_500_000) return fail(413, "That photo is too large.");
+    const [u] = await db.sql`INSERT INTO ai_usage (user_id, day, n) VALUES (${me.id}, CURRENT_DATE, 1)
+      ON CONFLICT (user_id, day) DO UPDATE SET n = ai_usage.n + 1 RETURNING n`;
+    if (u.n > AI_PER_DAY) return fail(429, `You've used today's ${AI_PER_DAY} AI scans. Search or scan a barcode, or try again tomorrow.`);
+    try { return json(await aiMeal({ image: body.image ? String(body.image) : undefined, text: body.text ? String(body.text) : undefined })); }
+    catch (e: any) { return fail(e.status || 500, e.message || "Couldn't read that meal."); }
+  }
+
+  /* ----- reminders & push ----- */
+  if (route === "push/key") return json({ key: (await vapid(db)).publicKey });
+  if (route === "push/subscribe") {
+    const sub = body.subscription;
+    if (!sub || typeof sub.endpoint !== "string" || !/^https:\/\//.test(sub.endpoint) || !sub.keys) return fail(400, "bad subscription");
+    await db.sql`INSERT INTO push_subs (endpoint, user_id, data) VALUES (${sub.endpoint}, ${me.id}, ${JSON.stringify(sub)}::jsonb)
+      ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, data = EXCLUDED.data`;
+    return json({ ok: true });
+  }
+  if (route === "push/unsubscribe") {
+    await db.sql`DELETE FROM push_subs WHERE user_id = ${me.id} AND endpoint = ${String(body.endpoint || "")}`;
+    return json({ ok: true });
+  }
+  if (route === "push/test") return json({ sent: await pushTo(db, me.id, { title: "Rep & Ration", body: "Reminders are on. You'll get a nudge at the times you picked.", url: "/#today", tag: "test" }) });
+  if (route === "reminders/get") {
+    const [r] = await db.sql`SELECT tz, items FROM reminders WHERE user_id = ${me.id}`;
+    const [n] = await db.sql`SELECT COUNT(*)::int AS n FROM push_subs WHERE user_id = ${me.id}`;
+    return json({ tz: r ? r.tz : null, items: r ? r.items : [], devices: n.n });
+  }
+  if (route === "reminders/set") {
+    const tz = String(body.tz || "America/Los_Angeles").slice(0, 60);
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); } catch { return fail(400, "bad time zone"); }
+    const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20).map((x: any) => ({
+      id: String(x.id || "").slice(0, 20), on: !!x.on, time: /^\d{2}:\d{2}$/.test(x.time) ? x.time : "12:00",
+      days: Array.isArray(x.days) ? x.days.filter((d: any) => Number.isInteger(d) && d >= 0 && d <= 6) : [0, 1, 2, 3, 4, 5, 6],
+      title: String(x.title || "Rep & Ration").slice(0, 60), body: String(x.body || "").slice(0, 160), url: String(x.url || "/").slice(0, 60)
+    }));
+    await db.sql`INSERT INTO reminders (user_id, tz, items) VALUES (${me.id}, ${tz}, ${JSON.stringify(items)}::jsonb)
+      ON CONFLICT (user_id) DO UPDATE SET tz = EXCLUDED.tz, items = EXCLUDED.items`;
+    await db.sql`UPDATE users SET tz = ${tz} WHERE id = ${me.id}`;
+    return json({ ok: true });
+  }
+
+  /* ----- family plan ----- */
+  if (route.startsWith("family/")) {
+    if (route === "family/mine") return json({ via: acc.via, owner: acc.owner || null });
+    if (acc.via !== "own" || !plan.startsWith("family")) return fail(403, "Family members are managed by the family plan owner.");
+    if (route === "family/add") {
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(400, "Enter a valid email address.");
+      if (email === me.email) return fail(400, "You're already on the plan.");
+      const [{ n }] = await db.sql`SELECT COUNT(*)::int AS n FROM family_members WHERE owner_id = ${me.id}`;
+      if (n >= 4) return fail(400, "Your family plan covers you plus 4 people. Remove someone to add another.");
+      await db.sql`INSERT INTO family_members (owner_id, email) VALUES (${me.id}, ${email}) ON CONFLICT DO NOTHING`;
+      if (mailReady()) await sendMail(email, `${me.name || me.email} added you to their Rep & Ration family plan`, [
+        `${me.name || me.email} added you to their Rep & Ration family membership, so you get the full app at no cost.`,
+        `Create your account with this email address (${email}) and you're in. No card needed.`
+      ], { label: "Create my account", url: url.origin });
+    } else if (route === "family/remove") {
+      await db.sql`DELETE FROM family_members WHERE owner_id = ${me.id} AND email = ${String(body.email || "").toLowerCase()}`;
+    }
+    const rows = await db.sql`SELECT m.email, m.added_at, u.name, (u.id IS NOT NULL) AS joined FROM family_members m LEFT JOIN users u ON u.email = m.email WHERE m.owner_id = ${me.id} ORDER BY m.added_at`;
+    return json({ members: rows.map((r: any) => ({ email: r.email, name: r.name || "", joined: r.joined })) });
+  }
+
+  /* ----- coach mode ----- */
+  if (route.startsWith("coach/")) {
+    const isCoach = acc.via === "own" && plan.startsWith("coach");
+    if (route === "coach/mine") {
+      // the client's side: who coaches me, what they see, and our messages
+      const rows = await db.sql`SELECT l.coach_id, l.share, u.name, u.email FROM coach_links l JOIN users u ON u.id = l.coach_id WHERE l.client_id = ${me.id}`;
+      const out = [];
+      for (const r of rows) {
+        const msgs = await db.sql`SELECT by_id, text, created_at FROM coach_msgs WHERE coach_id = ${r.coach_id} AND client_id = ${me.id} ORDER BY created_at DESC LIMIT 30`;
+        out.push({ id: r.coach_id, name: r.name || String(r.email).split("@")[0], share: r.share, msgs: msgs.reverse().map((m: any) => ({ mine: m.by_id === me.id, text: m.text, at: m.created_at })) });
+      }
+      return json({ coaches: out });
+    }
+    if (route === "coach/join") {
+      const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const [c] = await db.sql`SELECT c.coach_id, u.plan, u.sub_status, u.name, u.email FROM coach_codes c JOIN users u ON u.id = c.coach_id WHERE c.code = ${code}`;
+      if (!c || !ACTIVE.includes(c.sub_status || "") || !String(c.plan || "").startsWith("coach")) return fail(404, "No coach uses that code. Check it with your coach.");
+      if (c.coach_id === me.id) return fail(400, "That's your own coach code.");
+      const [{ n }] = await db.sql`SELECT COUNT(*)::int AS n FROM coach_links WHERE coach_id = ${c.coach_id}`;
+      if (n >= (PLANS[c.plan as PlanKey]?.clients || 0)) return fail(400, "Your coach's client list is full. Ask them to upgrade to Coach Unlimited.");
+      await db.sql`INSERT INTO coach_links (coach_id, client_id) VALUES (${c.coach_id}, ${me.id}) ON CONFLICT DO NOTHING`;
+      return json({ ok: true, coach: c.name || String(c.email).split("@")[0] });
+    }
+    if (route === "coach/leave" || route === "coach/share") {
+      const coachId = String(body.coach || "");
+      if (route === "coach/leave") await db.sql`DELETE FROM coach_links WHERE coach_id = ${coachId} AND client_id = ${me.id}`;
+      else { const sh = { food: !!body.share?.food, workouts: !!body.share?.workouts, weight: !!body.share?.weight };
+        await db.sql`UPDATE coach_links SET share = ${JSON.stringify(sh)}::jsonb WHERE coach_id = ${coachId} AND client_id = ${me.id}`; }
+      return json({ ok: true });
+    }
+    if (route === "coach/msg") {
+      const other = String(body.to || ""), text = String(body.text || "").trim().slice(0, 1000);
+      if (!text) return fail(400, "Write a message first.");
+      const l = await linkFor(db, me, other); if (!l) return fail(403, "You're not connected.");
+      await db.sql`INSERT INTO coach_msgs (coach_id, client_id, by_id, text) VALUES (${l.coach_id}, ${l.client_id}, ${me.id}, ${text})`;
+      await pushTo(db, other, { title: me.name || "Your coach", body: text.slice(0, 120), url: l.coach_id === me.id ? "/#coach" : "/#clients", tag: "coach" }).catch(() => 0);
+      return json({ ok: true });
+    }
+    if (!isCoach) return fail(403, "Coach tools come with a Coach plan.");
+    if (route === "coach/code") {
+      let [c] = await db.sql`SELECT code FROM coach_codes WHERE coach_id = ${me.id}`;
+      if (!c) { for (let i = 0; i < 10 && !c; i++) [c] = await db.sql`INSERT INTO coach_codes (code, coach_id) VALUES (${coachCode()}, ${me.id}) ON CONFLICT DO NOTHING RETURNING code`; }
+      return json({ code: c.code });
+    }
+    if (route === "coach/clients") {
+      const rows = await db.sql`SELECT l.client_id, l.share, l.created_at, u.name, u.email FROM coach_links l JOIN users u ON u.id = l.client_id WHERE l.coach_id = ${me.id} ORDER BY u.name`;
+      const out = [];
+      for (const r of rows) {
+        const d = await userDocs(db, r.client_id);
+        const [m] = await db.sql`SELECT by_id, created_at FROM coach_msgs WHERE coach_id = ${me.id} AND client_id = ${r.client_id} ORDER BY created_at DESC LIMIT 1`;
+        out.push({ id: r.client_id, name: r.name || String(r.email).split("@")[0], since: r.created_at, share: r.share, sum: clientSummary(d, r.share), unread: !!(m && m.by_id !== me.id) });
+      }
+      return json({ clients: out, limit: PLANS[plan as PlanKey]?.clients || 0 });
+    }
+    if (route === "coach/client") {
+      const cid = String(body.id || "");
+      const [l] = await db.sql`SELECT * FROM coach_links WHERE coach_id = ${me.id} AND client_id = ${cid}`;
+      if (!l) return fail(404, "That client isn't connected to you.");
+      const d = await userDocs(db, cid), sh = l.share || {};
+      const since = dayKey(new Date(Date.now() - 13 * 864e5));
+      const log = (d.food && d.food.log) || {};
+      const [u] = await db.sql`SELECT name, email FROM users WHERE id = ${cid}`;
+      const msgs = await db.sql`SELECT by_id, text, created_at FROM coach_msgs WHERE coach_id = ${me.id} AND client_id = ${cid} ORDER BY created_at DESC LIMIT 50`;
+      const p = d.profile || {};
+      return json({
+        name: u.name || String(u.email).split("@")[0], share: sh,
+        profile: { sex: p.sex, age: p.age, heightCm: p.heightCm, weightKg: sh.weight ? p.weightKg : null, activity: p.activity, goal: p.goal, diet: p.diet, faith: p.faith, rate: p.rate, adaptive: p.adaptive, units: p.units, daysPerWeek: p.daysPerWeek, schedule: sh.workouts ? p.schedule : null },
+        food: sh.food ? Object.fromEntries(Object.entries(log).filter(([k]) => k >= since)) : null,
+        sessions: sh.workouts ? ((d.training && d.training.sessions) || []).slice(-40) : null,
+        weights: sh.weight ? ((d.training && d.training.weights) || []).slice(-120) : null,
+        msgs: msgs.reverse().map((m: any) => ({ mine: m.by_id === me.id, text: m.text, at: m.created_at }))
+      });
+    }
+    if (route === "coach/remove") {
+      await db.sql`DELETE FROM coach_links WHERE coach_id = ${me.id} AND client_id = ${String(body.id || "")}`;
+      return json({ ok: true });
+    }
+    return fail(404, "not found");
+  }
 
   if (route === "profiles") {
     const ids: string[] = Array.isArray(body.ids) ? body.ids.slice(0, 200).map(String) : [];

@@ -1,0 +1,190 @@
+/* ======================================================================
+   Recipe library, part 2: keto & low-carb, vegan high-protein, paleo, muscle gain,
+   high-volume weight loss, smoothies & shakes, budget, diabetes-friendly, family,
+   faith practices (Daniel Fast, Ramadan, Lent, Jain, Orthodox) and top-8-allergen-free.
+   Every recipe is written for Rep & Ration; nutrition comes from the food table (USDA values)
+   and portions scale to each member's targets. Menus filter them by diet, faith and allergies.
+   ====================================================================== */
+F("mozz","Mozzarella, part-skim","1 oz","dairy",72,7,1,4.5,0.3,0,["dairy"]);
+F("cocoa","Cocoa powder, unsweetened","1 tbsp","pantry",12,1,3,0.7,0,0,[]);
+F("coconutmilk","Coconut milk, light (canned)","1/2 cup","pantry",75,0.5,2,7,1,0,[]);
+F("nutyeast","Nutritional yeast","2 tbsp","pantry",45,8,5,0.5,0,0,[]);
+F("pbpowder","Powdered peanut butter","2 tbsp","pantry",60,6,5,1.5,2,1,["nuts","peanut","legume"]);
+F("lamb","Ground lamb, cooked","4 oz","protein",320,28,0,22,0,0,[]);
+F("bonebroth","Chicken bone broth","1 cup","pantry",40,9,0,0.5,0,0,["chicken"]);
+F("olives","Olives","10 small","pantry",40,0.3,2,4,0,0,[]);
+F("pesto","Basil pesto","1 tbsp","pantry",80,1,1,8,0.3,0,["dairy","nuts"]);
+F("frozberries","Mixed berries, frozen","1 cup","produce",70,1,17,0.5,12,0,[]);
+F("heavycream","Heavy cream","1 tbsp","dairy",51,0.4,0.4,5.4,0.4,0,["dairy"]);
+F("celery","Celery","1 cup chopped","produce",14,0.7,3,0.2,1.4,0,[]);
+F("turmericlatte","Turmeric (golden) milk spice","1 tsp","pantry",8,0.2,1.4,0.2,0,0,[]);
+for (const id of ["lamb"]) FOOD[id].tags.push("halalmeat");
+SOURCES.rr = {name:"Rep & Ration kitchen", short:"R&R kitchen", url:"/support.html#menus", why:"Written by Rep & Ration for specific diets (keto, vegan high-protein, paleo, muscle gain, high-volume fat loss, smoothies, budget, faith practices and allergy-friendly), with nutrition from USDA data.", badge:"Rep & Ration kitchen"};
+const R = (id,slot,src,name,items,steps) => TEMPLATES.push(T(id,slot,src,name,items,steps));
+// keto & low-carb
+R("k1","Breakfast","rr","Bacon, eggs & avocado",[["egg",2],["bacon",1],["avocado",1],["spinach",0.5]],["Crisp the bacon; cook the eggs in a little of the fat.","Serve with sliced avocado and wilted spinach."]);
+R("k2","Breakfast","rr","Spinach & feta omelet",[["egg",3],["spinach",1],["feta",1],["oil",0.5]],["Wilt spinach in the oil.","Pour in beaten eggs, cook until set, add feta and fold."]);
+R("k3","Breakfast","rr","Coconut chia pudding",[["chia",3],["coconutmilk",1],["raspberries",0.5]],["Stir chia into the coconut milk with a splash of water and vanilla.","Chill overnight; top with raspberries."]);
+R("k4","Breakfast","rr","Salmon, egg & cream cheese plate",[["cansalmon",1],["egg",2],["cucumber",0.5],["creamcheese",0.5]],["Soft-boil the eggs, 7 minutes.","Plate with salmon, cucumber slices and a swipe of cream cheese; finish with dill and lemon."]);
+R("k5","Breakfast","rr","Chicken sausage & pepper scramble",[["chxsausage",1],["egg",2],["pepper",0.5],["cheddar",0.5]],["Brown the sliced sausage and peppers.","Add the eggs and scramble; finish with cheddar."]);
+R("k6","Breakfast","rr","Cottage cheese & walnut bowl",[["cottage",1.5],["walnuts",0.5],["blueberries",0.25]],["Top cottage cheese with walnuts and a few blueberries.","Add cinnamon if you like."]);
+R("k7","Breakfast","rr","Eggs in butter & coffee with cream",[["egg",2],["butter",0.5],["coffee",1],["heavycream",2]],["Fry or scramble the eggs in butter.","Have coffee with heavy cream instead of sugar."]);
+R("k8","Breakfast","rr","Ham & Swiss egg muffins",[["egg",3],["ham",1],["swiss",0.5],["spinach",0.5]],["Whisk eggs; stir in chopped ham, spinach and Swiss.","Bake in a muffin tin at 350°F for 20 minutes. Keeps 4 days."]);
+R("k9","Lunch","rr","Cobb salad",[["chicken",0.75],["egg",1],["bacon",1],["avocado",1],["romaine",1],["cheddar",0.5],["vinaigrette",0.5]],["Arrange chopped chicken, egg, bacon, avocado and cheese over romaine.","Dress just before eating."]);
+R("k10","Lunch","rr","Tuna avocado lettuce wraps",[["tuna",1],["avocado",1],["romaine",1],["mayo",0.5]],["Mash tuna with avocado, mayo, lemon and pepper.","Spoon into romaine leaves."]);
+R("k11","Lunch","rr","Cheeseburger lettuce wrap",[["beef",1],["cheddar",1],["romaine",1],["tomato",0.5]],["Cook a seasoned beef patty and melt cheddar on top.","Wrap in crisp romaine with tomato and mustard."]);
+R("k12","Lunch","rr","Chicken Caesar, no croutons",[["chicken",1],["romaine",1.5],["parmesan",1],["oil",1]],["Whisk oil with lemon, garlic, a little mustard and half the parmesan.","Toss with romaine and sliced chicken; top with the rest of the cheese."]);
+R("k13","Lunch","rr","Greek salad with shrimp",[["shrimp",1],["cucumber",1],["tomato",1],["feta",1],["olives",1],["oil",1]],["Toss cucumber, tomato and olives with oil, red wine vinegar and oregano.","Top with shrimp and feta."]);
+R("k14","Lunch","rr","Turkey & Swiss roll-ups",[["turkeydeli",2],["swiss",1],["cucumber",1],["guac",1]],["Lay out turkey slices, add Swiss and a cucumber spear, roll up.","Dip in guacamole."]);
+R("k15","Lunch","rr","Pesto chicken zucchini noodles",[["chicken",1],["zucchini",1.5],["pesto",1],["parmesan",0.5]],["Spiralize or ribbon the zucchini and sauté 2 minutes.","Toss with pesto and sliced chicken; top with parmesan."]);
+R("k16","Lunch","rr","Egg salad avocado boats",[["egg",3],["avocado",1],["mayo",0.5],["celery",0.5]],["Chop hard-boiled eggs; mix with mayo, celery, mustard and paprika.","Spoon into avocado halves."]);
+R("k17","Dinner","rr","Steak, garlic butter & asparagus",[["sirloin",1],["asparagus",1],["butter",1]],["Sear steak 3–4 minutes a side; rest 5 minutes.","Roast asparagus at 425°F for 10 minutes; top both with garlic butter."]);
+R("k18","Dinner","rr","Salmon & lemon-butter broccoli",[["salmon",1],["broccoli",1],["butter",1]],["Roast salmon and broccoli at 400°F for 12–14 minutes.","Finish with butter, lemon and garlic."]);
+R("k19","Dinner","rr","Crispy chicken thighs & cauliflower mash",[["chickthigh",1],["cauliflower",1.5],["butter",0.5],["parmesan",0.5]],["Roast seasoned thighs at 425°F for 25 minutes.","Steam cauliflower; mash with butter and parmesan."]);
+R("k20","Dinner","rr","Pork chop & green beans almondine",[["porkchop",1],["greenbeans",1],["almonds",0.5],["butter",0.5]],["Sear the pork chop and finish in a 400°F oven to 145°F.","Sauté green beans in butter with sliced almonds."]);
+R("k21","Dinner","rr","Shrimp & zucchini scampi",[["shrimp",1.25],["zucchini",1.5],["butter",1],["parmesan",0.5]],["Sauté garlic in butter; add shrimp and cook 2 minutes a side.","Toss in zucchini ribbons, lemon and parmesan."]);
+R("k22","Dinner","rr","Bacon cheeseburger bowl",[["beef",1],["bacon",1],["cheddar",1],["romaine",1],["tomato",0.5]],["Brown the beef; crumble in cooked bacon.","Serve over shredded romaine with cheddar, tomato, pickles and mustard."]);
+R("k23","Dinner","rr","Chicken fajita bowl on cauliflower rice",[["chicken",1],["caulirice",1],["pepper",1],["onion",0.25],["guac",1],["sourcream",1]],["Sear sliced chicken, peppers and onion with fajita spices.","Serve over cauliflower rice with guacamole and sour cream."]);
+R("k24","Dinner","rr","Lamb kofta & cucumber salad",[["lamb",1],["cucumber",1],["tomato",0.5],["yogurt",0.25]],["Mix lamb with cumin, coriander, garlic and parsley; shape on skewers and grill.","Serve with cucumber-tomato salad and a spoon of yogurt sauce."]);
+R("k25","Dinner","rr","Tofu & spinach coconut curry",[["tofu",1.5],["coconutmilk",1],["spinach",1],["mushrooms",1]],["Brown cubed tofu; add curry paste and mushrooms.","Pour in coconut milk, simmer 8 minutes and stir in spinach."]);
+R("k26","Dinner","rr","Pesto cod & garlicky spinach",[["cod",1],["pesto",1],["spinach",1],["oil",0.5]],["Spread pesto on cod; bake at 400°F for 12 minutes.","Sauté spinach with garlic in oil."]);
+R("k27","Snack","rr","Cheddar & almonds",[["cheddar",1],["almonds",0.5]],["A quick, filling low-carb snack."]);
+R("k28","Snack","rr","Deviled eggs",[["egg",2],["mayo",0.5]],["Halve hard-boiled eggs; mash yolks with mayo, mustard and paprika and spoon back in."]);
+R("k29","Snack","rr","Olives & feta",[["olives",1],["feta",1]],["Toss with oregano and a squeeze of lemon."]);
+R("k30","Snack","rr","Turkey & cream cheese cucumber bites",[["turkeydeli",1],["creamcheese",0.5],["cucumber",0.5]],["Top cucumber rounds with cream cheese and a fold of turkey."]);
+R("k31","Snack","rr","Guacamole & cucumber chips",[["guac",2],["cucumber",1]],["Slice cucumber into thick rounds for dipping."]);
+// vegan high-protein
+R("v1","Breakfast","rr","Tofu scramble burrito",[["tofu",1],["blackbeans",0.5],["tortilla",1],["salsa",1],["spinach",0.5]],["Crumble tofu into a hot pan with turmeric, cumin and black salt or regular salt.","Add beans and spinach; wrap in the tortilla with salsa."]);
+R("v2","Breakfast","rr","Plant-protein oats",[["oats",1],["soymilk",1],["plantprotein",1],["blueberries",0.5]],["Cook oats in soy milk.","Stir in protein powder off the heat; top with blueberries."]);
+R("v3","Breakfast","rr","Peanut banana oatmeal",[["oats",1],["pbpowder",1],["banana",0.5],["soymilk",1]],["Cook oats in soy milk; stir in powdered peanut butter.","Top with sliced banana."]);
+R("v4","Breakfast","rr","Tempeh breakfast hash",[["tempeh",1],["potato",1],["pepper",0.5],["oil",0.5]],["Brown diced potato in oil for 10 minutes.","Add crumbled tempeh, pepper, smoked paprika and soy sauce; cook until crisp."]);
+R("v5","Breakfast","rr","Vegan berry protein bowl",[["plantprotein",1],["frozberries",1],["banana",0.5],["soymilk",0.5],["chia",1]],["Blend thick with as little milk as possible.","Top with chia and extra berries."]);
+R("v6","Lunch","rr","Lentil taco bowl",[["lentils",1.5],["brownrice",0.5],["salsa",1],["avocado",0.5],["romaine",1]],["Warm lentils with taco seasoning.","Serve over rice and lettuce with salsa and avocado."]);
+R("v7","Lunch","rr","Edamame quinoa crunch salad",[["edamame",1],["quinoa",0.75],["carrots",0.5],["cucumber",0.5],["soysauce",0.5]],["Toss cooled quinoa with edamame, carrot and cucumber.","Dress with soy sauce, rice vinegar and sesame-free chili oil or lime."]);
+R("v8","Lunch","rr","Seitan & pepper hummus wrap",[["seitan",1],["tortilla",1],["pepper",0.5],["onion",0.25],["hummus",1]],["Sear sliced seitan with peppers and onion.","Wrap with hummus."]);
+R("v9","Lunch","rr","Veggie burger & big salad",[["veggieburger",1],["engmuffin",1],["greens",1],["avocado",0.5]],["Cook the patty per the package.","Serve on a toasted muffin with a side salad and avocado."]);
+R("v10","Lunch","rr","Tofu banh mi noodle bowl",[["tofu",1],["ricenoodles",0.75],["cucumber",0.5],["carrots",0.5],["soysauce",0.5]],["Bake or pan-fry tofu until golden.","Serve over noodles with quick-pickled carrot and cucumber, cilantro and soy-lime dressing."]);
+R("v11","Dinner","rr","Tempeh & bean chili",[["tempeh",1],["kidneybeans",1],["tomato",1],["onion",0.5],["pepper",0.5]],["Brown crumbled tempeh with onion and pepper.","Add beans, tomatoes, chili powder and cumin; simmer 20 minutes."]);
+R("v12","Dinner","rr","Peanut tofu noodles",[["tofu",1],["ricenoodles",1],["pbpowder",1],["broccoli",1],["soysauce",0.5]],["Whisk powdered peanut butter with soy sauce, lime and water.","Toss with noodles, crispy tofu and broccoli."]);
+R("v13","Dinner","rr","Chickpea pasta with lentil marinara",[["chickpeapasta",1],["lentils",0.5],["marinara",1],["spinach",1]],["Simmer lentils in marinara for 10 minutes.","Toss with chickpea pasta and spinach."]);
+R("v14","Dinner","rr","Black bean & sweet potato enchilada bowl",[["blackbeans",1],["sweetpotato",1],["corntort",1],["salsa",1],["nutyeast",1]],["Roast cubed sweet potato.","Layer with beans, torn tortillas and salsa; bake 15 minutes at 375°F and sprinkle with nutritional yeast."]);
+R("v15","Dinner","rr","Seitan & broccoli stir-fry",[["seitan",1.25],["brownrice",0.75],["broccoli",1],["pepper",0.5],["soysauce",1]],["Stir-fry seitan, broccoli and pepper with ginger and garlic.","Add soy sauce; serve over rice."]);
+R("v16","Dinner","rr","Lentil shepherd's pie",[["lentils",1.5],["potato",1],["carrots",0.5],["peas",0.5],["oil",0.5]],["Simmer lentils with carrots, peas, thyme and vegetable broth.","Top with mashed potato (mashed with a little oil and soy milk) and bake 20 minutes at 400°F."]);
+R("v17","Snack","rr","Edamame & an orange",[["edamame",0.5],["orange",1]],["Steam edamame; sprinkle with salt and chili flakes."]);
+R("v18","Snack","rr","Hummus & pita",[["hummus",2],["pita",0.5],["cucumber",0.5]],["Warm the pita; dip with cucumber."]);
+R("v19","Snack","rr","Peanut dip & apple",[["pbpowder",1],["apple",1]],["Stir powdered peanut butter with water into a dip; slice the apple."]);
+R("v20","Snack","rr","Trail mix & soy milk",[["trailmix",0.5],["soymilk",1]],["A portable snack with protein."]);
+// paleo / Whole30-style
+R("p1","Breakfast","rr","Sweet potato & sausage hash",[["chxsausage",1],["sweetpotato",1],["spinach",1],["oil",0.5]],["Brown diced sweet potato in oil, 12 minutes.","Add sliced sausage and spinach; cook through."]);
+R("p2","Breakfast","rr","Eggs, avocado & berries",[["egg",3],["avocado",0.5],["blueberries",1]],["Cook eggs your way.","Serve with avocado and berries."]);
+R("p3","Breakfast","rr","Banana egg pancakes",[["banana",1],["egg",2],["almondbutter",0.5]],["Mash banana and whisk with eggs.","Cook small pancakes over medium-low heat; top with almond butter."]);
+R("p4","Lunch","rr","Chicken salad lettuce cups",[["chicken",1],["avocado",0.5],["grapes",0.5],["romaine",1],["mayo",0.5]],["Mix diced chicken with mashed avocado, halved grapes and a little mayo.","Spoon into lettuce cups."]);
+R("p5","Lunch","rr","Steak & sweet potato salad",[["sirloin",0.75],["sweetpotato",1],["greens",1],["oil",0.5]],["Roast sweet potato cubes; slice cooked steak.","Toss with greens, oil and balsamic or lemon."]);
+R("p6","Lunch","rr","Tuna-stuffed avocado",[["tuna",1],["avocado",1],["cherrytom",0.5]],["Mix tuna with lemon, salt and pepper.","Pile into avocado halves; tomatoes on the side."]);
+R("p7","Dinner","rr","Salmon, roasted beets & kale",[["salmon",1],["beets",1],["kale",1],["oil",0.5]],["Roast salmon and beets at 400°F.","Massage kale with oil and lemon; serve together."]);
+R("p8","Dinner","rr","Bison burger & sweet potato fries",[["bison",1],["sweetpotato",1],["romaine",0.5],["guac",1]],["Grill the bison patty in a lettuce wrap.","Bake sweet potato wedges at 425°F; top the burger with guacamole."]);
+R("p9","Dinner","rr","Chicken thigh, squash & Brussels traybake",[["chickthigh",1],["butternut",1],["brussels",1],["oil",0.5]],["Toss everything with oil, rosemary and garlic.","Roast at 425°F for 30 minutes."]);
+R("p10","Dinner","rr","Shrimp & cauliflower fried rice",[["shrimp",1.25],["caulirice",1.5],["pepper",1],["coconutoil",0.5]],["Stir-fry shrimp and peppers in coconut oil.","Add cauliflower rice and coconut aminos or a splash of lime; cook 4 minutes."]);
+R("p11","Dinner","rr","Pork tenderloin with apples & cabbage",[["porktender",1],["apple",0.5],["cabbage",1],["oil",0.5]],["Roast seasoned pork at 425°F to 145°F.","Sauté cabbage and apple slices with caraway or thyme."]);
+R("p12","Snack","rr","Apple & almond butter",[["apple",1],["almondbutter",0.5]],["Slice and dip."]);
+R("p13","Snack","rr","Baked plantain & cashews",[["plantain",1],["cashews",0.5]],["Bake plantain slices at 400°F until golden."]);
+// muscle gain
+R("g1","Breakfast","rr","Steak & eggs with potatoes",[["sirloin",0.75],["egg",3],["potato",1],["oil",0.5]],["Sear the steak; rest it while you cook the eggs.","Serve with crispy pan-fried potatoes."]);
+R("g2","Breakfast","rr","Mass-gainer oats",[["oats",1.5],["whey",1],["wholemilk",1],["pb",1],["banana",1]],["Cook oats in milk.","Stir in protein powder and peanut butter; top with banana."]);
+R("g3","Breakfast","rr","Bagel egg sandwich",[["bagel",1],["egg",2],["cheddar",1],["turkeybacon",2]],["Fry eggs and crisp the turkey bacon.","Stack on a toasted bagel with cheddar."]);
+R("g4","Breakfast","rr","Pancakes with cottage cheese & berries",[["pancakes",2],["cottage",1],["maple",0.5],["strawberries",1]],["Make or warm pancakes.","Top with cottage cheese, berries and a little maple."]);
+R("g5","Lunch","rr","Double chicken burrito bowl",[["chicken",1.5],["whiterice",1],["blackbeans",1],["cheddar",1],["salsa",1],["avocado",0.5]],["Season chicken with cumin and chili; slice.","Build over rice and beans with cheese, salsa and avocado."]);
+R("g6","Lunch","rr","Pasta with turkey meat sauce",[["turkey",1.25],["pasta",1.5],["marinara",1],["parmesan",1]],["Brown turkey, add marinara and simmer.","Toss with pasta and parmesan."]);
+R("g7","Lunch","rr","Salmon poke bowl",[["salmon",1],["whiterice",1],["edamame",0.5],["avocado",0.5],["soysauce",0.5]],["Cube cooked salmon and toss with soy sauce and lime.","Serve over rice with edamame and avocado."]);
+R("g8","Lunch","rr","Steak quesadilla",[["sirloin",0.75],["flourtort",2],["cheddar",1],["pepper",0.5],["sourcream",1]],["Fill tortillas with sliced steak, peppers and cheese.","Toast until crisp; serve with sour cream and salsa."]);
+R("g9","Dinner","rr","Beef & broccoli with jasmine rice",[["sirloin",1.25],["whiterice",1.5],["broccoli",1],["soysauce",1],["oil",0.5]],["Stir-fry thin-sliced beef; remove.","Cook broccoli, return the beef with soy sauce, ginger and garlic; serve over rice."]);
+R("g10","Dinner","rr","Creamy chicken & broccoli pasta",[["chicken",1.25],["pasta",1.5],["parmesan",1],["yogurt",0.5],["broccoli",1]],["Cook pasta with broccoli in the last 3 minutes.","Toss with sliced chicken, Greek yogurt, parmesan, garlic and pasta water."]);
+R("g11","Dinner","rr","Loaded sweet potato with ground beef",[["beef",1.25],["sweetpotato",1.5],["cheddar",1],["sourcream",1]],["Bake sweet potatoes.","Split and fill with seasoned beef, cheese and sour cream."]);
+R("g12","Dinner","rr","Salmon, rice, avocado & asparagus",[["salmon",1.25],["brownrice",1.25],["avocado",1],["asparagus",1]],["Roast salmon and asparagus at 400°F.","Serve with rice and avocado."]);
+R("g13","Snack","rr","Peanut butter banana shake",[["whey",1],["banana",1],["pb",1],["wholemilk",1.5],["oats",0.5]],["Blend everything with ice."]);
+R("g14","Snack","rr","Greek yogurt, granola & honey",[["yogurt",1],["granola",1],["honey",1]],["Layer and eat."]);
+R("g15","Snack","rr","Turkey & Swiss sourdough sandwich",[["turkeydeli",2],["sourdough",2],["swiss",1],["mayo",0.5]],["Stack on sourdough with mustard and lettuce."]);
+R("g16","Snack","rr","Cottage cheese & pineapple",[["cottage",2],["pineapple",1]],["Top cottage cheese with pineapple."]);
+// high-volume fat loss
+R("l1","Breakfast","rr","Egg-white veggie scramble & toast",[["eggwhite",2],["spinach",1],["mushrooms",1],["pepper",0.5],["bread",1]],["Sauté vegetables in a nonstick pan.","Add egg whites and scramble; serve with toast."]);
+R("l2","Breakfast","rr","Berry skyr bowl",[["skyr",1],["strawberries",1],["blueberries",0.5]],["Top skyr with plenty of berries."]);
+R("l3","Breakfast","rr","Savory oats with egg & salsa",[["oats",0.5],["egg",1],["spinach",1],["salsa",1]],["Cook oats with water and a pinch of salt; stir in spinach.","Top with a fried egg and salsa."]);
+R("l4","Breakfast","rr","Iced protein coffee",[["coffee",1],["whey",1],["almondmilk",1]],["Shake cold coffee, almond milk and protein powder with ice."]);
+R("l5","Lunch","rr","Big chicken salad",[["chicken",1],["greens",2],["cucumber",1],["cherrytom",1],["vinaigrette",0.5]],["Pile greens high; add vegetables and sliced chicken.","Use half the dressing you think you need and toss well."]);
+R("l6","Lunch","rr","Light turkey chili",[["turkey",0.75],["kidneybeans",0.5],["tomato",2],["onion",0.5],["pepper",1]],["Brown turkey with onion and pepper.","Add tomatoes, beans and spices; simmer 20 minutes."]);
+R("l7","Lunch","rr","Shrimp & vegetable soup",[["shrimp",1],["mixedveg",1.5],["tomato",1],["onion",0.5]],["Simmer vegetables in low-sodium broth with tomato and herbs.","Add shrimp for the last 3 minutes."]);
+R("l8","Lunch","rr","Zucchini lasagna roll-ups",[["ricotta",0.5],["zucchini",1.5],["marinara",1],["turkey",0.5],["parmesan",0.5]],["Slice zucchini lengthwise; spread with ricotta and cooked turkey and roll.","Bake in marinara at 375°F for 25 minutes; top with parmesan."]);
+R("l9","Dinner","rr","Cod & roasted rainbow vegetables",[["cod",1.25],["zucchini",1],["pepper",1],["cherrytom",1],["oil",0.5]],["Roast vegetables at 425°F for 15 minutes.","Add cod to the tray and roast 10–12 more minutes."]);
+R("l10","Dinner","rr","Chicken & cabbage stir-fry",[["chicken",1],["cabbage",2],["carrots",0.5],["soysauce",1],["oil",0.5]],["Stir-fry sliced chicken; add shredded cabbage and carrot.","Season with soy sauce, ginger and chili."]);
+R("l11","Dinner","rr","Turkey meatball vegetable soup",[["meatballs",1],["spinach",1],["carrots",0.5],["onion",0.5],["mixedveg",1]],["Simmer vegetables in broth for 10 minutes.","Add meatballs and spinach; simmer 10 more."]);
+R("l12","Dinner","rr","Lean beef & vegetable skillet",[["beef95",1],["zucchini",1],["pepper",1],["onion",0.5],["tomato",1]],["Brown the beef with onion.","Add vegetables and Italian seasoning; cook until tender."]);
+R("l13","Snack","rr","Cottage cheese, cucumber & tomato",[["cottage",1],["cucumber",1],["cherrytom",0.5]],["Season with black pepper and everything-bagel spice."]);
+R("l14","Snack","rr","Watermelon & feta",[["watermelon",1],["feta",0.5]],["Add mint and lime if you have them."]);
+R("l15","Snack","rr","Turkey & cucumber bites",[["turkeydeli",1],["cucumber",1]],["Wrap cucumber spears in turkey."]);
+R("l16","Snack","rr","Frozen grapes & almonds",[["grapes",1],["almonds",0.5]],["Freeze grapes for a sorbet-like snack."]);
+// smoothies, shakes & drinks
+R("sm1","Breakfast","rr","Green peanut smoothie",[["spinach",1],["banana",1],["almondmilk",1],["pb",0.5]],["Blend spinach and milk first, then the rest with ice."]);
+R("sm2","Snack","rr","Berry protein smoothie",[["frozberries",1],["whey",1],["yogurt",0.5],["almondmilk",1]],["Blend until thick."]);
+R("sm3","Snack","rr","Chocolate peanut protein shake",[["cocoa",1],["pbpowder",1],["banana",1],["milk",1],["whey",1]],["Blend with ice."]);
+R("sm4","Snack","rr","Mango lassi-style smoothie",[["mango",1],["yogurt",1],["honey",0.5]],["Blend with a pinch of cardamom and a few ice cubes."]);
+R("sm5","Breakfast","rr","Tropical vegan protein smoothie",[["pineapple",1],["mango",0.5],["soymilk",1],["plantprotein",1]],["Blend with ice."]);
+R("sm6","Breakfast","rr","Oatmeal cookie smoothie",[["oats",0.5],["banana",1],["almondbutter",0.5],["oatmilk",1]],["Blend with cinnamon and ice."]);
+R("sm7","Snack","rr","Strawberry kefir smoothie",[["strawberries",1],["kefir",1],["chia",1]],["Blend; let it sit 5 minutes to thicken."]);
+R("sm8","Breakfast","rr","Coffee banana protein shake",[["coffee",1],["whey",1],["banana",0.5],["milk",1]],["Blend cold coffee with the rest and ice."]);
+R("sm9","Snack","rr","Keto chocolate shake",[["cocoa",1],["heavycream",2],["almondmilk",1],["almondbutter",0.5]],["Blend with ice and a pinch of salt."]);
+R("sm10","Snack","rr","Cherry recovery smoothie",[["cherries",1],["yogurt",0.5],["milk",1]],["Blend frozen cherries with yogurt and milk."]);
+R("sm11","Breakfast","rr","Peach cobbler smoothie",[["peach",1],["oats",0.5],["yogurt",0.5],["milk",1]],["Blend with cinnamon and vanilla."]);
+R("sm12","Snack","rr","Golden milk",[["milk",1],["honey",0.5],["turmericlatte",1]],["Warm milk with turmeric, cinnamon, ginger and black pepper; sweeten with honey."]);
+// budget
+R("bu1","Breakfast","myplate","Peanut butter oatmeal & banana",[["oats",1],["pb",0.5],["banana",1]],["Cook oats in water or milk; stir in peanut butter.","Top with banana slices."]);
+R("bu2","Breakfast","myplate","Egg & potato skillet",[["egg",2],["potato",1],["onion",0.25],["oil",0.5]],["Cook diced potato and onion in oil until crisp.","Crack in the eggs; cover until set."]);
+R("bu3","Lunch","myplate","Rice, pinto beans & salsa",[["whiterice",1],["pinto",1],["salsa",1],["cheddar",0.5]],["Warm beans with cumin and garlic.","Serve over rice with salsa and cheese."]);
+R("bu4","Lunch","myplate","Lentil sloppy joes",[["lentils",1.5],["engmuffin",1],["marinara",0.5],["onion",0.25]],["Simmer lentils with onion, marinara, mustard and chili powder.","Spoon onto toasted muffins."]);
+R("bu5","Dinner","myplate","Chicken thighs, rice & frozen vegetables",[["chickthigh",1],["whiterice",1],["mixedveg",1],["soysauce",0.5]],["Bake seasoned thighs at 425°F for 25 minutes.","Serve with rice and steamed frozen vegetables."]);
+R("bu6","Dinner","myplate","Bean & cheese quesadillas",[["refried",1],["flourtort",2],["cheddar",1],["salsa",1]],["Spread beans on tortillas, add cheese and fold.","Toast in a dry pan; serve with salsa."]);
+R("bu7","Dinner","myplate","Tuna & pea pasta",[["tuna",1],["pasta",1.5],["peas",0.5],["mayo",0.5]],["Cook pasta with peas.","Toss with tuna, a little mayo, lemon and pepper."]);
+R("bu8","Dinner","myplate","Black bean soup & tortillas",[["blackbeans",1.5],["onion",0.5],["carrots",0.5],["tomato",1],["corntort",1]],["Simmer beans with onion, carrot, tomato, cumin and broth for 20 minutes; mash some.","Serve with warm tortillas."]);
+R("bu9","Snack","myplate","Peanut butter banana toast",[["bread",1],["pb",0.5],["banana",0.5]],["Spread and slice."]);
+// diabetes-friendly
+R("dm1","Breakfast","ada","Veggie egg muffins",[["egg",2],["spinach",0.5],["pepper",0.5],["cheddar",0.5]],["Whisk eggs with chopped vegetables and cheese.","Bake in a muffin tin at 350°F for 20 minutes."]);
+R("dm2","Breakfast","ada","Steel-cut oats with walnuts & raspberries",[["steelcut",1],["walnuts",0.5],["raspberries",0.5],["skim",0.5]],["Simmer steel-cut oats 25 minutes (or overnight in a slow cooker).","Top with walnuts, raspberries and milk."]);
+R("dm3","Lunch","ada","Chicken lettuce tacos",[["groundchicken",1],["romaine",1],["tomato",0.5],["salsa",1],["avocado",0.5]],["Brown chicken with taco spices.","Spoon into romaine leaves with tomato, salsa and avocado."]);
+R("dm4","Lunch","ada","Lentil & barley soup",[["lentils",1],["barley",0.5],["carrots",0.5],["spinach",1]],["Simmer lentils, barley and carrot in broth for 30 minutes.","Stir in spinach."]);
+R("dm5","Dinner","ada","Turkey, roasted cauliflower & quinoa",[["turkey",1],["cauliflower",1.5],["quinoa",0.5],["oil",0.5]],["Roast cauliflower with oil and cumin.","Serve with seasoned turkey and quinoa."]);
+R("dm6","Dinner","ada","Chicken & black bean chili",[["chicken",1],["blackbeans",0.75],["tomato",1],["pepper",0.5]],["Simmer diced chicken with beans, tomato, pepper and chili spices for 20 minutes."]);
+R("dm7","Snack","ada","Apple & cheddar",[["apple",0.5],["cheddar",1]],["Pair half an apple with cheese to slow the sugar rise."]);
+R("dm8","Snack","ada","Dry-roasted peanuts",[["peanuts",1]],["Portion one ounce."]);
+// family-friendly
+R("f1","Lunch","myplate","Pizza bagels",[["bagel",1],["marinara",0.5],["mozz",1],["pepper",0.25]],["Top bagel halves with sauce, mozzarella and peppers.","Bake at 400°F for 8 minutes."]);
+R("f2","Dinner","myplate","Oven-baked chicken tenders & sweet potato",[["chicken",1],["bread",0.5],["egg",0.25],["sweetpotato",1],["broccoli",1]],["Dip chicken strips in egg, then whole-wheat breadcrumbs; bake at 425°F for 15 minutes.","Serve with baked sweet potato and broccoli."]);
+R("f3","Dinner","myplate","Turkey taco night",[["turkey",1],["corntort",1],["cheddar",0.5],["romaine",0.5],["salsa",1],["blackbeans",0.5]],["Brown turkey with taco seasoning.","Set out toppings and let everyone build their own."]);
+R("f4","Breakfast","myplate","Pancakes, yogurt & berries",[["pancakes",2],["strawberries",1],["yogurt",0.5]],["Top pancakes with yogurt and berries instead of syrup."]);
+R("f5","Snack","myplate","Apple sandwiches",[["apple",1],["pb",0.5],["granola",0.25]],["Slice apple into rounds, spread with peanut butter, sprinkle granola and sandwich."]);
+R("f6","Dinner","myplate","Turkey pasta bake",[["pasta",1],["turkey",0.75],["marinara",1],["mozz",1]],["Mix cooked pasta, browned turkey and sauce in a dish.","Top with mozzarella; bake at 375°F for 20 minutes."]);
+// faith practices
+R("df1","Breakfast","rr","Daniel Fast steel-cut oatmeal",[["steelcut",1],["almondmilk",1],["blueberries",0.5],["walnuts",0.5]],["Simmer oats in water and almond milk.","Top with berries and walnuts. No sweetener needed."]);
+R("df2","Lunch","rr","Brown rice & black bean bowl",[["brownrice",1],["blackbeans",1],["avocado",0.5],["tomato",1],["spinach",1]],["Warm beans with cumin and garlic.","Serve over rice and spinach with tomato and avocado."]);
+R("df3","Dinner","rr","Vegetable lentil stew",[["lentils",1.5],["sweetpotato",0.5],["carrots",0.5],["kale",1],["oil",0.5]],["Simmer lentils with vegetables, herbs and water for 25 minutes.","Stir in kale until wilted."]);
+R("df4","Snack","rr","Apple & almonds",[["apple",1],["almonds",1]],["Simple and whole."]);
+R("df5","Dinner","rr","Stuffed sweet potato",[["sweetpotato",1.5],["blackbeans",1],["avocado",0.5],["kale",1]],["Bake sweet potatoes; split open.","Fill with beans, sautéed kale and avocado."]);
+R("df6","Breakfast","rr","Quinoa fruit & seed porridge",[["quinoa",0.75],["almondmilk",0.5],["banana",0.5],["pepitas",0.5]],["Warm cooked quinoa in almond milk with cinnamon.","Top with banana and pumpkin seeds."]);
+R("ra1","Breakfast","rr","Suhoor: oats, yogurt & dates",[["oats",1],["yogurt",1],["dates",1],["chia",1],["banana",0.5]],["Make overnight oats with yogurt, chia and chopped dates the evening before.","Eat before dawn with plenty of water. Slow carbs and protein keep you full."]);
+R("ra2","Breakfast","rr","Suhoor: eggs, pita, hummus & watermelon",[["egg",2],["pita",1],["cucumber",1],["hummus",1],["watermelon",1]],["Boil or scramble eggs.","Serve with pita, hummus, cucumber and watermelon for hydration."]);
+R("ra3","Breakfast","rr","Suhoor: chickpea & egg plate",[["chickpeas",1],["egg",1],["tomato",1],["pita",1],["oil",0.5]],["Warm chickpeas with cumin, lemon and olive oil; mash lightly.","Serve with a boiled egg, tomato and pita."]);
+R("ra4","Dinner","rr","Iftar: lentil soup, chicken & rice",[["lentils",1],["chickthigh",1],["basmati",0.75],["cucumber",0.5]],["Start with a bowl of lentil soup.","Follow with roasted chicken, basmati rice and cucumber salad."]);
+R("ra5","Dinner","rr","Iftar: lamb & vegetable plate",[["lamb",1],["basmati",0.75],["zucchini",1],["tomato",1]],["Brown lamb with onion, cumin and cinnamon.","Serve with rice and roasted zucchini and tomato."]);
+R("ra6","Snack","rr","After Iftar: dates, milk & almonds",[["dates",1],["milk",1],["almonds",0.5]],["A light evening snack that rehydrates."]);
+R("le1","Dinner","rr","Lenten baked cod & potatoes",[["cod",1.25],["potato",1],["greenbeans",1],["butter",0.5]],["Bake cod with lemon, butter and herbs at 400°F for 12 minutes.","Serve with roasted potatoes and green beans."]);
+R("le2","Lunch","rr","Tuna & chickpea salad",[["tuna",1],["chickpeas",0.5],["greens",1],["oil",0.5]],["Toss tuna and chickpeas with greens, lemon and olive oil."]);
+R("le3","Dinner","rr","Shrimp & vegetable fried rice",[["shrimp",1],["brownrice",1],["mixedveg",1],["egg",1],["soysauce",0.5]],["Scramble the egg; set aside.","Stir-fry shrimp and vegetables, add rice and soy sauce, fold in egg."]);
+R("ja1","Lunch","rr","Tomato dal & basmati (no onion or garlic)",[["lentils",1.5],["basmati",0.75],["spinach",1],["tomato",1],["oil",0.5]],["Simmer lentils with turmeric and tomato.","Temper cumin seeds, ginger and asafoetida in oil and pour over; serve with rice."]);
+R("ja2","Breakfast","rr","Yogurt with banana & pistachios",[["yogurt",1],["banana",0.5],["pistachios",0.5]],["Top yogurt with sliced banana and pistachios."]);
+R("or1","Dinner","rr","Fast-day shrimp & vegetable pasta",[["shrimp",1],["pasta",1],["zucchini",1],["cherrytom",1],["oil",0.5]],["Sauté garlic, tomatoes and zucchini in olive oil.","Add shrimp, then toss with pasta."]);
+R("or2","Lunch","rr","Greek white-bean soup (fasolada-style)",[["kidneybeans",1.5],["carrots",0.5],["onion",0.5],["tomato",1],["oil",1],["bread",1]],["Simmer beans with carrot, onion, celery, tomato and olive oil until thick.","Serve with bread."]);
+// top-8-allergen-free (no dairy, eggs, gluten, nuts, peanuts, soy, fish, shellfish)
+R("af1","Breakfast","rr","Allergy-friendly oatmeal",[["oats",1],["oatmilk",1],["blueberries",0.5],["pepitas",0.5]],["Use certified gluten-free oats and oat milk.","Top with berries and pumpkin seeds."]);
+R("af2","Lunch","rr","Chicken, rice & broccoli (top-8-free)",[["chicken",1],["whiterice",1],["broccoli",1],["oil",0.5]],["Season chicken with herbs, garlic and lemon; roast.","Serve with rice and broccoli."]);
+R("af3","Dinner","rr","Turkey, sweet potato & kale skillet",[["turkey",1],["sweetpotato",1],["kale",1],["oil",0.5]],["Brown turkey with diced sweet potato in oil until tender.","Stir in kale and season with smoked paprika."]);
+R("af4","Snack","rr","Sunflower seeds & a pear",[["sunflower",0.5],["pear",1]],["A nut-free crunchy snack."]);
+R("af5","Dinner","rr","Pork tenderloin, potatoes & green beans",[["porktender",1],["potato",1],["greenbeans",1],["oil",0.5]],["Roast pork and potatoes at 425°F; add green beans for the last 10 minutes."]);
+Object.assign(COST, {mozz:.45, cocoa:.1, coconutmilk:.5, nutyeast:.4, pbpowder:.35, lamb:2.5, bonebroth:1, olives:.4, pesto:.4, frozberries:.9, heavycream:.1, celery:.25, turmericlatte:.05});
