@@ -2,9 +2,10 @@ import type { Context, Config } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import Stripe from "stripe";
 import { ACTIVE, PLANS, FLEET_MIN, FLEET_MAX, fleetSeatPrice, isPlan, money, stripe, priceFor, planOfSub, sendMail, mailReady, vapid, pushTo, type PlanKey } from "../lib/shared.mts";
-import { searchFoods, barcode, aiMeal, aiReady, menuScan, chainMenu, pantryScan, weeklyReview } from "../lib/food.mts";
+import { searchFoods, barcode, aiMeal, aiReady, claudeJSON, menuScan, chainMenu, pantryScan, weeklyReview } from "../lib/food.mts";
 import { videoRoutes, deleteVideoBlobs } from "../lib/videos.mts";
 import { photoRoutes, deleteAllPhotos } from "../lib/photos.mts";
+import { marketRoutes } from "../lib/market.mts";
 import { scrypt as _scrypt, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
 
@@ -379,12 +380,17 @@ async function handle(req: Request, context: Context): Promise<Response> {
   const FREE_ROUTES = new Set(["db", "profiles", "food/search", "fleet/join", "fleet/mine"]);
   // a member's own photos stay viewable (and deletable) even after Premium lapses
   if (route.startsWith("photo/") || route === "photos/list" || route === "photos/delete") { const pr = await photoRoutes(route, db, me, body, true); if (pr) return pr; }
+  const mctx = (premium: boolean) => ({ premium, isCoach: acc.via === "own" && String(acc.plan || "").startsWith("coach"), s: stripe(), ai: claudeJSON, aiOn: aiReady(), mail: sendMail, mailOn: mailReady(), origin: url.origin });
+  // things people already paid for stay reachable even if their membership lapses
+  if (route.startsWith("mimg/") || route === "market/purchases" || route === "market/confirm") { const mr = await marketRoutes(route, req, db, me, body, mctx(true)); if (mr) return mr; }
   if (!acc.active && !FREE_ROUTES.has(route)) return fail(402, "This feature isn't available in free mode. Upgrade to Premium to use it.");
   const plan = acc.plan || "";
   const vr = await videoRoutes(route, req, url, db, me, acc.via === "own" && plan.startsWith("coach"), body, aiReady());
   if (vr) return vr;
   const pr = await photoRoutes(route, db, me, body, acc.active);
   if (pr) return pr;
+  const mr = await marketRoutes(route, req, db, me, body, mctx(acc.active));
+  if (mr) return mr;
 
   /* ----- food search, barcodes, AI ----- */
   if (route === "food/search") return json({ items: await searchFoods(db, String(body.q || "")) });

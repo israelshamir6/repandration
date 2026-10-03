@@ -10,6 +10,9 @@ const BENEFIT = [
   ["blueberries strawberries raspberries blackberries frozberries cherries", "Berries: antioxidants and vitamin C"],
   ["blackbeans lentils chickpeas kidneybeans pinto blackeyed refried chickpeapasta", "Beans and lentils: plant protein and gut-friendly fiber"],
   ["oats steelcut barley oatcup", "Oats and barley: beta-glucan fiber that helps lower cholesterol"],
+  ["kimchi miso kefir", "Fermented foods: live cultures that support gut health"],
+  ["bulgur sobanoodles quinoa farro brownrice injera", "Whole grains: steady energy, B vitamins and fiber"],
+  ["okra eggplant jackfruit", "Low-calorie vegetables packed with fiber"],
   ["yogurt kefir skyr gyogcup cottage", "Protein and calcium; yogurt and kefir add probiotics"],
   ["egg eggwhite hbegg2 eggbites", "Eggs: complete protein and choline for brain health"],
   ["sweetpotato carrots babycarrots butternut", "Beta-carotene (vitamin A) for eyes and immunity"],
@@ -43,7 +46,8 @@ function benefitsOf(items){
 }
 function benefitHTML(items){ const b = benefitsOf(items); if (!b.out.length && !b.badges.length) return "";
   return `<div class="benefits">${b.badges.map(x => `<span class="bpill">${x}</span>`).join("")}${b.out.length ? `<ul>${b.out.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div>`; }
-function mealCard(m, di, mi, logged){ return mealCard0(m, di, mi, logged).replace("</h3>", "</h3>" + benefitHTML(m.items)); }
+const cuisineOf = name => { const t = TEMPLATES.find(x => x.name === name); return t && t.cuisine; };
+function mealCard(m, di, mi, logged){ const c = cuisineOf(m.name); return mealCard0(m, di, mi, logged).replace("</h3>", "</h3>" + (c ? `<span class="small muted">${esc(c)} inspired</span>` : "") + benefitHTML(m.items)); }
 
 /* ---------- menu scanner ---------- */
 const dine = {res:null, busy:false, err:"", restaurant:"", chains:{}, chainQ:"", country:"United States", chain:null, chainBusy:false};

@@ -1,0 +1,17 @@
+name: iOS app (unsigned build check)
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install
+      - run: npx cap add ios && node scripts/patch-ios.mjs
+      - run: npx cap sync ios
+      - run: |
+          if [ -d ios/App/App.xcworkspace ]; then W="-workspace ios/App/App.xcworkspace"; else W="-project ios/App/App.xcodeproj"; fi
+          xcodebuild $W -scheme App -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build | tail -20

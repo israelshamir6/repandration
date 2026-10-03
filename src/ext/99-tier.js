@@ -28,6 +28,7 @@ const _woTab = A.woTab; A.woTab = el => { if (el.dataset.tab === "videos" && !pr
 const _planTab = A.planTab; A.planTab = el => { if (el.dataset.tab === "grocery" && !premiumGate("Grocery lists & shopping")) return; _planTab(el); };
 for (const [view, title, feature, blurb] of [["coach","Coach","Coach mode","Connect with a personal trainer or nutrition coach, share your logs and message each other. Trainers on a Coach plan get a client dashboard and can post demo videos."],
   ["devices","Devices","Devices & health alerts","Track heart rate, sleep, steps and blood pressure, with one clear tip when something needs attention."],
+  ["market","Coach Shop","The Coach Shop","Training programs, meal plans, coaching and gear from Rep & Ration coaches."],
   ["dot","DOT prep","DOT physical prep","Get ready for your DOT medical exam: blood pressure log with certificate-length estimates, sleep and sleep-apnea screening, blood sugar, and a readiness checklist."]]){
   const f = RENDER[view]; RENDER[view] = () => isPremium() ? f() : lockedView(title, feature, blurb);
 }
@@ -52,7 +53,7 @@ profileExtras = () => {
 function markLocks(){
   if (isPremium()) return;
   document.querySelectorAll("[data-act]").forEach(el => { const a = el.dataset.act;
-    const locked = PREMIUM_ACTS[a] || (a === "woTab" && el.dataset.tab === "videos") || (a === "planTab" && el.dataset.tab === "grocery") || (a === "fsTab" && el.dataset.t === "recipes") || (a === "nav" && ["coach","devices","dot"].includes(el.dataset.view)) || PREMIUM_EXTRA.includes(a);
+    const locked = PREMIUM_ACTS[a] || (a === "woTab" && el.dataset.tab === "videos") || (a === "planTab" && el.dataset.tab === "grocery") || (a === "fsTab" && el.dataset.t === "recipes") || (a === "nav" && ["coach","devices","dot","market"].includes(el.dataset.view)) || PREMIUM_EXTRA.includes(a);
     if (locked && !el.querySelector(".lockic")) el.insertAdjacentHTML("beforeend", LOCK); });
 }
 const PREMIUM_EXTRA = ["menuScan","pantryOpen","openSleep","fastQuick","chainOpen","fastStart","weeklyRun","snapToggle"];

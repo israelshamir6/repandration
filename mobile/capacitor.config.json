@@ -1,0 +1,12 @@
+{
+  "appId": "app.repandration",
+  "appName": "Rep & Ration",
+  "webDir": "www",
+  "server": {
+    "url": "https://repandration.netlify.app",
+    "cleartext": false,
+    "allowNavigation": ["repandration.netlify.app", "checkout.stripe.com", "billing.stripe.com", "connect.stripe.com"]
+  },
+  "ios": { "contentInset": "always", "backgroundColor": "#F1F4F2" },
+  "android": { "backgroundColor": "#F1F4F2" }
+}

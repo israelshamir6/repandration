@@ -200,7 +200,7 @@ export async function aiMeal(input: { image?: string; text?: string }): Promise<
 }
 
 /* ---------- restaurant menus: scan a menu, or look up a chain anywhere in the world ---------- */
-async function claudeJSON(system: string, content: any[], maxTokens = 1800): Promise<any> {
+export async function claudeJSON(system: string, content: any[], maxTokens = 1800): Promise<any> {
   const key = Netlify.env.get("ANTHROPIC_API_KEY");
   if (!key) throw Object.assign(new Error("AI features aren't switched on yet."), { status: 503 });
   const res = await fetch("https://api.anthropic.com/v1/messages", {

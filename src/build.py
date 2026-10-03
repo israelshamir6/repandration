@@ -130,6 +130,8 @@ s = rep(s, '  const xt = [x0, x0+(x1-x0)/2, x1];\n  xt.forEach((x,i) => { const 
   '    let lastR = -1e9; xt.forEach((x,i) => { const px = span ? X(clamp(x, x0, x1)) : (L+W-R)/2, dt = new Date(x), lab = `${MON[dt.getMonth()]} ${dt.getDate()}`, wd = lab.length*6.6;\n'
   '      const anc = !span ? "middle" : i===0 ? "start" : i===xt.length-1 ? "end" : "middle", left = anc==="start" ? px : anc==="end" ? px-wd : px-wd/2;\n'
   '      if (left < lastR + 10) return; lastR = left + wd; g += `<text x="${px}" y="${H-8}" text-anchor="${anc}">${lab}</text>`; }); }')
+# health benefits on every suggested meal
+s = rep(s, '<span class="num" style="font-weight:700">${fmt(m.t.kcal)} kcal</span></div>${srcBadge(m.tpl.src)}<ul>', '<span class="num" style="font-weight:700">${fmt(m.t.kcal)} kcal</span></div>${srcBadge(m.tpl.src)}${benefitHTML(m.items)}<ul>')
 # exercises referenced by saved plans always resolve, even before the gym library loads
 s = rep(s, "const EX = Object.fromEntries(EXS.map(e => [e.id,e]));",
   'const EX = new Proxy(Object.fromEntries(EXS.map(e => [e.id,e])), {get(t, k){ if (typeof k !== "string" || k in t) return t[k]; return {id:k, name: String(k).replace(/^fx-|^wg-|^cx-/, "").replace(/_/g, " "), impact:1, pattern:"core", equip:[], metric:"reps", loaded:false, muscles:"", dose:10, cue:"", gen:false}; }});')
