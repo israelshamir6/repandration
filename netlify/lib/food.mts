@@ -72,7 +72,7 @@ function offItem(p: any): Item | null {
   let kcal = num(t["energy-kcal_100g"]);
   if (!kcal && t["energy_100g"]) kcal = num(t["energy_100g"]) / 4.184;
   const n100: N = { kcal, p: num(t.proteins_100g), c: num(t.carbohydrates_100g), f: num(t.fat_100g), s: num(t.sugars_100g), as: num(t["added-sugars_100g"]), fib: num(t.fiber_100g), na: num(t.sodium_100g) * 1000 };
-  if (!n100.kcal && !n100.p && !n100.c && !n100.f) return null;
+  if (!n100.kcal && !n100.p && !n100.c && !n100.f && !("energy-kcal_100g" in t) && !("energy_100g" in t)) return null;
   const servings: { label: string; g: number }[] = [];
   const sq = num(p.serving_quantity);
   if (sq > 0) servings.push({ label: p.serving_size ? `${String(p.serving_size).slice(0, 40)}` : `1 serving (${r(sq)} g)`, g: sq });
@@ -177,7 +177,12 @@ export async function aiMeal(input: { image?: string; text?: string }): Promise<
     signal: timed(25000)
   });
   const j: any = await res.json().catch(() => ({}));
-  if (!res.ok) { console.error("anthropic", res.status, JSON.stringify(j).slice(0, 300)); throw Object.assign(new Error("The food scanner is busy. Try again in a minute."), { status: 502 }); }
+  if (!res.ok) {
+    console.error("anthropic", res.status, JSON.stringify(j).slice(0, 300));
+    const msg = String((j.error && j.error.message) || "");
+    const why = res.status === 401 ? "the AI key isn't valid. Check ANTHROPIC_API_KEY in Netlify" : /credit/i.test(msg) ? "the AI account is out of credits" : res.status === 404 || /model/i.test(msg) ? "the AI model isn't available on this account" : res.status === 429 || res.status === 529 ? "it's busy right now" : `error ${res.status}`;
+    throw Object.assign(new Error(`Photo logging isn't working: ${why}. Try search or barcode for now.`), { status: 502 });
+  }
   const txt = (j.content || []).map((c: any) => c.text || "").join("");
   const mm = txt.match(/\{[\s\S]*\}/);
   let parsed: any = {};
