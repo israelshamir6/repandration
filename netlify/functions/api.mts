@@ -352,8 +352,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
   const acc = await access(db, me);
   if (!acc.active) return fail(402, "Start your free trial to use this.");
   const plan = acc.plan || "";
-  const owner = /^(israelshamir6|repandration27)@gmail\.com$/i.test(me.email);  // the business owner can post official demos
-  const vr = await videoRoutes(route, req, url, db, me, owner || (acc.via === "own" && plan.startsWith("coach")), body, aiReady());
+  const vr = await videoRoutes(route, req, url, db, me, acc.via === "own" && plan.startsWith("coach"), body, aiReady());
   if (vr) return vr;
 
   /* ----- food search, barcodes, AI ----- */

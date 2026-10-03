@@ -478,6 +478,13 @@ button.li:last-child,a.li:last-child{border-bottom:0}
   .coll{flex:0 0 auto;min-width:130px;scroll-snap-align:start;padding:10px 12px}
   .vgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 }
+.chartbox{width:100%;overflow:hidden}
+.chartbox .chart{width:100%;height:100%}
+.chart text{font-size:12px!important}
+input[type=date],input[type=time],input[type=email],input[type=password],input[type=tel]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-size:.95rem;min-width:0;font-family:inherit;min-height:42px}
+input[type=date]:focus,input[type=time]:focus,input[type=email]:focus,input[type=password]:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+form.row>label.f,form.row>.btn{align-self:flex-end}
+form.row .btn{min-height:42px}
 
 .exlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}.exlink:hover{color:var(--accent-strong);text-decoration:underline}
 </style>
@@ -1302,8 +1309,8 @@ function niceTicks(min, max, n=4){
   for (let v=lo; v<=hi+step/2; v+=step) t.push(Math.round(v*1000)/1000);
   return {lo, hi, t};
 }
-function lineChart(series, opt={}){
-  const W=640, H=opt.h||220, L=46, R=16, T=14, B=28;
+function lineChart0(series, opt={}){
+  const W=opt.w||640, H=opt.h||220, L=46, R=16, T=14, B=30;
   const all = series.flatMap(s=>s.pts); if (all.length < 2) return `<p class="empty">Log at least two entries to see a trend.</p>`;
   const xs = all.map(p=>p[0]), ys = all.map(p=>p[1]).concat(opt.extraY||[]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs); const pad = (Math.max(...ys)-Math.min(...ys))*0.08 || 1;
@@ -1324,8 +1331,8 @@ function lineChart(series, opt={}){
   if (opt.hline != null && opt.hline >= lo && opt.hline <= hi) g += `<line x1="${L}" x2="${W-R}" y1="${Y(opt.hline)}" y2="${Y(opt.hline)}" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opt.label||"Trend chart")}">${g}</svg>`;
 }
-function calBars(target){
-  const W=640,H=200,L=46,R=12,T=14,B=28, days=[];
+function calBars0(target, w){
+  const W=w||640,H=200,L=46,R=12,T=14,B=30, days=[];
   for (let i=6;i>=0;i--){ const k = dkey(addDays(new Date(),-i)); days.push([k, dayTotals(k).kcal]); }
   const {lo,hi,t} = niceTicks(0, Math.max(target*1.2, ...days.map(d=>d[1])), 4);
   const Y = y => T + (1-(y-lo)/(hi-lo))*(H-T-B), bw = (W-L-R)/7;
@@ -1508,7 +1515,7 @@ function logView(){
     <section class="card"><h2 style="margin-bottom:8px">Recent sessions</h2><div class="list">${recent.length?recent.map(s=>{const sets=s.items.reduce((a,it)=>a+it.sets.length,0); const vol=s.items.reduce((a,it)=>a+it.sets.reduce((b,x)=>b+(EX[it.ex].loaded?x.v*(x.load||0):0),0),0);
       return `<div class="li"><div class="main"><b>${esc(s.name)}</b><small>${shortDate(s.date)} · ${s.items.length} exercises · ${sets} sets${vol?` · ${fmt(wDisp(vol))} ${wUnit()} volume`:""}</small></div><button class="btn icon" data-act="delSession" data-id="${s.id}" aria-label="Delete session">${ICON.trash}</button></div>`;}).join(""):`<p class="empty">Your saved sessions will appear here.</p>`}</div></section></div>`;
 }
-function V_progress(){
+function V_progress0(){
   const p = state.profile, c = calc(p), w = sortedWeights(), now = new Date();
   const win = w.filter(x => pkey(x.date) >= addDays(now,-28));
   const avg = (arr) => arr.reduce((a,x)=>a+x.kg,0)/arr.length;
@@ -2509,6 +2516,27 @@ function downloadFile(name, text, type = "text/plain"){
 }
 function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
+/* ---------- charts drawn at their real width (crisp, readable labels on every screen) ---------- */
+const CHARTS = {}; let chartN = 0;
+function lineChart(series, opt = {}){
+  const probe = lineChart0(series, opt); if (!probe.startsWith("<svg")) return probe;
+  const id = "ch" + (++chartN); CHARTS[id] = w => lineChart0(series, Object.assign({}, opt, {w}));
+  return `<div class="chartbox" data-chart="${id}" style="height:${opt.h || 220}px">${probe}</div>`;
+}
+function calBars(target){ const id = "ch" + (++chartN); CHARTS[id] = w => calBars0(target, w); return `<div class="chartbox" data-chart="${id}" style="height:200px">${calBars0(target)}</div>`; }
+function drawCharts(){
+  for (const el of document.querySelectorAll(".chartbox[data-chart]")){
+    const f = CHARTS[el.dataset.chart], w = Math.round(el.clientWidth);
+    if (!f || !w || +el.dataset.w === w) continue;
+    el.dataset.w = w; el.innerHTML = f(Math.max(240, w));
+  }
+  const live = new Set([...document.querySelectorAll(".chartbox[data-chart]")].map(e => e.dataset.chart));
+  for (const k in CHARTS) if (!live.has(k)) delete CHARTS[k];
+}
+let chartRaf = 0;
+new MutationObserver(() => { cancelAnimationFrame(chartRaf); chartRaf = requestAnimationFrame(drawCharts); }).observe(document.documentElement, {childList:true, subtree:true});
+window.addEventListener("resize", () => { cancelAnimationFrame(chartRaf); chartRaf = requestAnimationFrame(drawCharts); });
+
 /* ======================================================================
    Food logging: one search over built-in foods, your recipes, recents and millions of
    USDA / Open Food Facts foods; barcode scanning; AI photo and "say it" logging; recipes.
@@ -3171,6 +3199,10 @@ function expenditureCard(){
 A.adaptiveToggle = el => { state.profile.adaptive = el.checked; persist("profile"); render(); };
 function paceSelect(id){ const p = state.profile, r = p.rate != null ? p.rate : defaultRate(p.goal); return `<select id="${id}" data-field="rate">${RATES[p.goal].map(([v,l]) => `<option value="${v}" ${Math.abs(v-r)<1e-6?"selected":""}>${l}${p.goal !== "maintain" ? ` (${fmt1(wDisp(p.weightKg*v/100))} ${wUnit()})` : ""}</option>`).join("")}</select>`; }
 document.addEventListener("change", e => { const el = e.target; if (el.dataset && el.dataset.field === "rate"){ state.profile.rate = +el.value; persist("profile"); render(); } });
+function V_progress(){
+  const html = V_progress0(), i = html.indexOf('<section class="card"><div class="card-head"><h2>Exercise progress');
+  return i < 0 ? html + expenditureCard() : html.slice(0, i) + expenditureCard() + html.slice(i);
+}
 
 /* ======================================================================
    Eating your way: faith & cultural eating, budget meal plans with cost per meal,
@@ -3635,7 +3667,7 @@ Object.assign(COST, {mozz:.45, cocoa:.1, coconutmilk:.5, nutyeast:.4, pbpowder:.
 window.RR_COACH = {mine:null, clients:null, limit:0, code:"", sel:null, detail:null, unread:0, busy:false, err:""};
 const CO = window.RR_COACH;
 const isCoachPlan = () => !!(me() && me().coach);
-const canPost = () => isCoachPlan() || !!(me() && /^(israelshamir6|repandration27)@gmail\.com$/i.test(me().email));
+const canPost = () => isCoachPlan();  // uploads are for members on a Coach plan only
 async function coachLoad(){
   if (!PUB || !me() || !me().sub.active) return;
   try {
@@ -4154,7 +4186,7 @@ function roadCard(){
 .gwho{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
 .gwho span{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:600}
 @media (max-width:900px){.ghero,.gplans{grid-template-columns:1fr}.gfeat{grid-template-columns:1fr 1fr}}
-@media (max-width:560px){.gfeat{grid-template-columns:1fr}}
+@media (max-width:560px){.gfeat{grid-template-columns:1fr}.gnav .ghelp{display:none}.gnav .brand b{white-space:nowrap}.gnav .row{flex-wrap:nowrap;gap:6px}.gnav .row .btn.primary{display:none}.ghero h1{font-size:2.15rem}}
 </style>
 <div class="gate" id="gate" hidden><div class="gwrap" id="gateBody"></div></div>
 <script>
@@ -4215,7 +4247,7 @@ function roadCard(){
       ["coach","Coach mode","Trainers see clients' meals, macros, workouts and weight in one dashboard and message them in the app."],
       ["buddies","Family & buddies","One family plan for the whole house, plus groups to cheer on friends and co-workers."],
       ["bell","Reminders & app install","Add it to your home screen like an app, with reminders for meals, workouts and weigh-ins."]];
-    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
+    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost ghelp" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
       <div class="ghero"><div><span class="eyebrow">Calorie counter · meal planner · workout app</span><h1>Train it. Eat it. <span>Track both.</span></h1>
         <p class="lead">One app that plans your meals and workouts around your goal, learns your real metabolism every week, and fits your budget, your faith and your schedule.</p>
         <div class="gcta"><button class="btn primary" data-gscroll>Start your 7-day free trial</button><button class="btn" data-gmode="login">Log in</button></div>

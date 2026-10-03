@@ -34,7 +34,7 @@
 .gwho{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
 .gwho span{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:600}
 @media (max-width:900px){.ghero,.gplans{grid-template-columns:1fr}.gfeat{grid-template-columns:1fr 1fr}}
-@media (max-width:560px){.gfeat{grid-template-columns:1fr}}
+@media (max-width:560px){.gfeat{grid-template-columns:1fr}.gnav .ghelp{display:none}.gnav .brand b{white-space:nowrap}.gnav .row{flex-wrap:nowrap;gap:6px}.gnav .row .btn.primary{display:none}.ghero h1{font-size:2.15rem}}
 </style>
 <div class="gate" id="gate" hidden><div class="gwrap" id="gateBody"></div></div>
 <script>
@@ -95,7 +95,7 @@
       ["coach","Coach mode","Trainers see clients' meals, macros, workouts and weight in one dashboard and message them in the app."],
       ["buddies","Family & buddies","One family plan for the whole house, plus groups to cheer on friends and co-workers."],
       ["bell","Reminders & app install","Add it to your home screen like an app, with reminders for meals, workouts and weigh-ins."]];
-    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
+    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost ghelp" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
       <div class="ghero"><div><span class="eyebrow">Calorie counter · meal planner · workout app</span><h1>Train it. Eat it. <span>Track both.</span></h1>
         <p class="lead">One app that plans your meals and workouts around your goal, learns your real metabolism every week, and fits your budget, your faith and your schedule.</p>
         <div class="gcta"><button class="btn primary" data-gscroll>Start your 7-day free trial</button><button class="btn" data-gmode="login">Log in</button></div>

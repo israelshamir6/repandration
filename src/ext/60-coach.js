@@ -6,7 +6,7 @@
 window.RR_COACH = {mine:null, clients:null, limit:0, code:"", sel:null, detail:null, unread:0, busy:false, err:""};
 const CO = window.RR_COACH;
 const isCoachPlan = () => !!(me() && me().coach);
-const canPost = () => isCoachPlan() || !!(me() && /^(israelshamir6|repandration27)@gmail\.com$/i.test(me().email));
+const canPost = () => isCoachPlan();  // uploads are for members on a Coach plan only
 async function coachLoad(){
   if (!PUB || !me() || !me().sub.active) return;
   try {

@@ -86,3 +86,7 @@ function expenditureCard(){
 A.adaptiveToggle = el => { state.profile.adaptive = el.checked; persist("profile"); render(); };
 function paceSelect(id){ const p = state.profile, r = p.rate != null ? p.rate : defaultRate(p.goal); return `<select id="${id}" data-field="rate">${RATES[p.goal].map(([v,l]) => `<option value="${v}" ${Math.abs(v-r)<1e-6?"selected":""}>${l}${p.goal !== "maintain" ? ` (${fmt1(wDisp(p.weightKg*v/100))} ${wUnit()})` : ""}</option>`).join("")}</select>`; }
 document.addEventListener("change", e => { const el = e.target; if (el.dataset && el.dataset.field === "rate"){ state.profile.rate = +el.value; persist("profile"); render(); } });
+function V_progress(){
+  const html = V_progress0(), i = html.indexOf('<section class="card"><div class="card-head"><h2>Exercise progress');
+  return i < 0 ? html + expenditureCard() : html.slice(0, i) + expenditureCard() + html.slice(i);
+}

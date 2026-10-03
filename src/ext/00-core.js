@@ -95,3 +95,24 @@ function downloadFile(name, text, type = "text/plain"){
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* ---------- charts drawn at their real width (crisp, readable labels on every screen) ---------- */
+const CHARTS = {}; let chartN = 0;
+function lineChart(series, opt = {}){
+  const probe = lineChart0(series, opt); if (!probe.startsWith("<svg")) return probe;
+  const id = "ch" + (++chartN); CHARTS[id] = w => lineChart0(series, Object.assign({}, opt, {w}));
+  return `<div class="chartbox" data-chart="${id}" style="height:${opt.h || 220}px">${probe}</div>`;
+}
+function calBars(target){ const id = "ch" + (++chartN); CHARTS[id] = w => calBars0(target, w); return `<div class="chartbox" data-chart="${id}" style="height:200px">${calBars0(target)}</div>`; }
+function drawCharts(){
+  for (const el of document.querySelectorAll(".chartbox[data-chart]")){
+    const f = CHARTS[el.dataset.chart], w = Math.round(el.clientWidth);
+    if (!f || !w || +el.dataset.w === w) continue;
+    el.dataset.w = w; el.innerHTML = f(Math.max(240, w));
+  }
+  const live = new Set([...document.querySelectorAll(".chartbox[data-chart]")].map(e => e.dataset.chart));
+  for (const k in CHARTS) if (!live.has(k)) delete CHARTS[k];
+}
+let chartRaf = 0;
+new MutationObserver(() => { cancelAnimationFrame(chartRaf); chartRaf = requestAnimationFrame(drawCharts); }).observe(document.documentElement, {childList:true, subtree:true});
+window.addEventListener("resize", () => { cancelAnimationFrame(chartRaf); chartRaf = requestAnimationFrame(drawCharts); });
