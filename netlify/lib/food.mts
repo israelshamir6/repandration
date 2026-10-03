@@ -180,7 +180,7 @@ export async function aiMeal(input: { image?: string; text?: string }): Promise<
   if (!res.ok) {
     console.error("anthropic", res.status, JSON.stringify(j).slice(0, 300));
     const msg = String((j.error && j.error.message) || "");
-    const why = res.status === 401 ? "the AI key isn't valid. Check ANTHROPIC_API_KEY in Netlify" : /credit/i.test(msg) ? "the AI account is out of credits" : res.status === 404 || /model/i.test(msg) ? "the AI model isn't available on this account" : res.status === 429 || res.status === 529 ? "it's busy right now" : `error ${res.status}`;
+    const why = res.status === 401 ? "the AI key isn't valid. Check ANTHROPIC_API_KEY in Netlify" : /credit/i.test(msg) ? "the AI account is out of credits" : res.status === 404 || /model/i.test(msg) ? "the AI model isn't available on this account" : res.status === 429 || res.status === 529 ? "it's busy right now" : `error ${res.status} (${msg.slice(0, 140)})`;
     throw Object.assign(new Error(`Photo logging isn't working: ${why}. Try search or barcode for now.`), { status: 502 });
   }
   const txt = (j.content || []).map((c: any) => c.text || "").join("");
