@@ -18,16 +18,44 @@
   const api = async (route, body) => {
     const r = await fetch("/api/" + route, {method: body === undefined ? "GET" : "POST", headers: {"content-type": "application/json"}, body: body === undefined ? undefined : JSON.stringify(body), credentials: "same-origin"});
     const j = await r.json().catch(() => ({}));
+    if (route === "auth/logout" || route === "account/delete" || route === "auth/login" || route === "auth/signup"){ try { for (const k of Object.keys(localStorage)) if (/^rr-(doc|q|user)/.test(k) || (k === "rr-queue" && /logout|delete/.test(route))) localStorage.removeItem(k); } catch {} }
     if (!r.ok){ const e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; e.code = r.status === 413 ? "invalid_argument" : r.status === 403 ? "invalid_argument" : "unavailable"; throw e; }
     return j;
   };
   window.RR_API = api;
+  /* ---------- offline: cached reads, queued writes that sync when the connection is back ---------- */
+  const LS = {get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }, del(k){ try { localStorage.removeItem(k); } catch {} }};
+  const isNet = e => e && !e.status && (e instanceof TypeError || /fetch|network|Load failed/i.test(e.message));
+  let queue = LS.get("rr-queue") || [];
+  const saveQ = () => { LS.set("rr-queue", queue); window.dispatchEvent(new Event("rr-queue")); };
+  window.RR_OFFLINE = {pending: () => queue.length, online: () => navigator.onLine};
+  const merge = (a, b) => { const o = Object.assign({}, a || {}); for (const [k, v] of Object.entries(b || {})){ if (k.includes(".")){ const ps = k.split("."); let t = o; for (const p of ps.slice(0, -1)){ t[p] = Object.assign({}, t[p]); t = t[p]; } t[ps.at(-1)] = v; } else o[k] = v; } return o; };
+  let flushing = false;
+  async function flush(){
+    if (flushing || !queue.length || !navigator.onLine) return; flushing = true;
+    try { while (queue.length){ await api("db", queue[0]); queue.shift(); saveQ(); } }
+    catch (e){ if (!isNet(e)){ queue.shift(); saveQ(); } }
+    flushing = false;
+    if (!queue.length) setTimeout(refresh, 50);
+  }
+  window.addEventListener("online", () => { flush(); window.dispatchEvent(new Event("rr-queue")); });
+  window.addEventListener("offline", () => window.dispatchEvent(new Event("rr-queue")));
+  setInterval(flush, 15000);
+  async function write(op){
+    const key = "rr-doc:" + op.path, cur = LS.get(key);
+    LS.set(key, op.op === "delete" ? {exists: false} : {exists: true, data: op.op === "set" ? op.data : merge(cur && cur.data, op.data)});
+    if (queue.length || !navigator.onLine){ queue.push(op); saveQ(); flush(); return {ok: true, queued: true}; }
+    try { return await api("db", op); } catch (e){ if (!isNet(e)) throw e; queue.push(op); saveQ(); return {ok: true, queued: true}; }
+  }
   const ready = api("me").then(async j => {
     let u = j.user;
+    if (u) LS.set("rr-user", u); else LS.del("rr-user");
     // If Stripe shows a subscription the site hasn't recorded yet (e.g. right after checkout), sync it now.
-    if (u && u.sub.billing && !u.sub.active) { try { u = (await api("billing/sync", {})).user || u; } catch {} }
+    // Right after checkout (or once per visit) pull the subscription straight from Stripe in case the webhook is late.
+    let synced = false; try { synced = sessionStorage.getItem("rrSynced") === "1"; } catch {}
+    if (u && u.sub.billing && !u.sub.active && (/checkout=success/.test(location.search) || !synced)) { try { sessionStorage.setItem("rrSynced", "1"); } catch {} try { u = (await api("billing/sync", {})).user || u; } catch {} }
     return (window.RR_USER = u);
-  }).catch(() => null);
+  }).catch(e => isNet(e) ? (window.RR_USER = LS.get("rr-user")) : null);
   window.RR_ME = ready;
   const listeners = new Set(), refresh = () => listeners.forEach(f => f());
   setInterval(refresh, 10000);
@@ -35,10 +63,16 @@
   const snap = (id, exists, data) => ({id, exists, data: () => data === undefined ? undefined : JSON.parse(JSON.stringify(data)), metadata: {fromCache: false, hasPendingWrites: false}});
   const doc = path => ({
     id: path.split("/").pop(), path,
-    get: async () => { const j = await api("db", {op: "get", path}); return snap(path.split("/").pop(), !!j.exists, j.data); },
-    set: async data => { const j = await api("db", {op: "set", path, data}); setTimeout(refresh, 50); return j; },
-    update: async data => { await api("db", {op: "update", path, data}); setTimeout(refresh, 50); },
-    delete: async () => { await api("db", {op: "delete", path}); setTimeout(refresh, 50); },
+    get: async () => {
+      const key = "rr-doc:" + path;
+      // while writes are waiting to sync, the local copy is the newest
+      if (queue.some(q => q.path === path)){ const c = LS.get(key); if (c) return snap(path.split("/").pop(), !!c.exists, c.data); }
+      try { const j = await api("db", {op: "get", path}); LS.set(key, {exists: !!j.exists, data: j.data}); return snap(path.split("/").pop(), !!j.exists, j.data); }
+      catch (e){ const c = LS.get(key); if (isNet(e) && c) return snap(path.split("/").pop(), !!c.exists, c.data); throw e; }
+    },
+    set: async data => { const j = await write({op: "set", path, data}); setTimeout(refresh, 50); return j; },
+    update: async data => { await write({op: "update", path, data}); setTimeout(refresh, 50); },
+    delete: async () => { await write({op: "delete", path}); setTimeout(refresh, 50); },
     acquire: async () => ({acquired: true}),
     onSnapshot: (next, err) => { let last; const f = () => doc(path).get().then(s => { const k = JSON.stringify([s.exists, s.data()]); if (k !== last){ last = k; next(s); } }).catch(e => err && err(e)); listeners.add(f); f(); return () => listeners.delete(f); },
     collection: sub => coll(path + "/" + sub)
@@ -47,7 +81,9 @@
     path,
     where: (f, op, v) => coll(path, [f, op, v]),
     orderBy(){ return this; }, limit(){ return this; },
-    get: async () => { const j = await api("db", {op: "query", collection: path, where: filter || []}); const docs = j.docs.map(d => snap(d.id, true, d.data)); return {docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: {}}; },
+    get: async () => { const key = "rr-q:" + path + JSON.stringify(filter || []); let j;
+      try { j = await api("db", {op: "query", collection: path, where: filter || []}); LS.set(key, j); } catch (e){ j = isNet(e) && LS.get(key); if (!j) throw e; }
+      const docs = j.docs.map(d => snap(d.id, true, d.data)); return {docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: {}}; },
     onSnapshot(next, err){ let last; const f = () => this.get().then(q => { const k = JSON.stringify(q.docs.map(d => [d.id, d.data()])); if (k !== last){ last = k; next(q); } }).catch(e => err && err(e)); listeners.add(f); f(); return () => listeners.delete(f); },
     doc: id => doc(path + "/" + (id || Math.random().toString(36).slice(2)))
   });
@@ -64,7 +100,7 @@
     },
     search: async () => []
   };
-  window.claude = {use: async name => { const u = await ready; if (!u || !u.sub.active) return null; return name === "db" ? db : name === "user" ? user : null; }};
+  window.claude = {use: async name => { const u = await ready; if (!u) return null; return name === "db" ? db : name === "user" ? user : null; }};
 })();
 </script>
 <title>Rep &amp; Ration</title>
@@ -369,7 +405,7 @@ button.li:last-child,a.li:last-child{border-bottom:0}
 .morelink svg:last-child{width:18px;height:18px;color:var(--muted)}
 .morelink:hover .main b{color:var(--accent-strong)}
 /* food */
-.logbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.logbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .logbtn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:650;font-size:.85rem;color:var(--ink);box-shadow:var(--shadow)}
 .logbtn svg{width:24px;height:24px;color:var(--accent-strong)}
 .logbtn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -452,7 +488,7 @@ button.li:last-child,a.li:last-child{border-bottom:0}
   .fab{bottom:calc(76px + env(safe-area-inset-bottom,0px));right:16px;width:54px;height:54px}
   .tabbar{grid-template-columns:repeat(5,1fr)!important}
   .sheet,.sheet.wide{left:0;right:0;top:auto;bottom:0;transform:none;width:100%;max-height:92vh;border-radius:20px 20px 0 0;animation:up .22s ease;padding-bottom:env(safe-area-inset-bottom,0px)}
-  .logbar{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .logbar{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
   .logbtn{padding:10px 2px;font-size:.72rem}
   .logbtn svg{width:20px;height:20px}
   .nutgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -485,6 +521,43 @@ input[type=date],input[type=time],input[type=email],input[type=password],input[t
 input[type=date]:focus,input[type=time]:focus,input[type=email]:focus,input[type=password]:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 form.row>label.f,form.row>.btn{align-self:flex-end}
 form.row .btn{min-height:42px}
+/* health benefits */
+.benefits{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.bpill{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;font-weight:600;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+/* sleep bars */
+.sleepbars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;align-items:end;height:96px}
+.sleepbars>div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
+.sleepbars i{display:block;width:100%;max-width:22px;border-radius:5px 5px 2px 2px;min-height:3px}
+.sleepbars small{font-size:.68rem;color:var(--muted)}
+/* habits */
+.habits .habit{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.habit .track,.fleetbox .track{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.habit .track i{display:block;height:100%;border-radius:99px}
+/* free-tier locks */
+.lockic{width:14px;height:14px;margin-left:6px;vertical-align:-2px;opacity:.75;flex:none}
+.qi .lockic{width:22px;height:22px;margin:0;opacity:1}
+.lockcard{align-items:flex-start;border-style:dashed}
+.upsheet .qi{flex:none}
+/* fleet */
+.fleetbox{border:1px solid var(--line);border-radius:12px;padding:14px}
+.fleetstats>div{display:flex;flex-direction:column;padding:10px;border-radius:10px;background:var(--surface-2)}
+.fleetstats b{font-size:1.4rem}
+.fleetstats small{color:var(--muted);font-size:.78rem}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.fleetbox textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical}
+@media (max-width:640px){.fleetstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+.gfleet{margin-top:16px}
+/* progress photos */
+.photocmp figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.photocmp img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;background:var(--surface-2)}
+.photocmp figcaption{font-size:.82rem;color:var(--muted);text-align:center}
+.photostrip{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.photostrip .ph{position:relative;flex:0 0 96px;display:flex;flex-direction:column;gap:3px}
+.photostrip img{width:96px;height:128px;object-fit:cover;border-radius:10px;background:var(--surface-2)}
+.photostrip small{font-size:.7rem;color:var(--muted)}
+.photostrip .btn{position:absolute;top:4px;right:4px;padding:2px 7px;min-height:0;background:var(--surface)}
+/* offline */
+.offline{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));z-index:60;background:var(--ink);color:var(--surface);padding:8px 14px;border-radius:999px;font-size:.85rem;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:calc(100vw - 32px);text-align:center}
 
 .exlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}.exlink:hover{color:var(--accent-strong);text-decoration:underline}
 </style>
@@ -1317,9 +1390,13 @@ function lineChart0(series, opt={}){
   const {lo, hi, t} = niceTicks(Math.min(...ys)-pad, Math.max(...ys)+pad, 4);
   const X = x => L + (x1===x0 ? (W-L-R)/2 : (x-x0)/(x1-x0)*(W-L-R)), Y = y => T + (1-(y-lo)/(hi-lo))*(H-T-B);
   let g = "";
-  for (const v of t) g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end">${fmt1(v)}</text>`;
-  const xt = [x0, x0+(x1-x0)/2, x1];
-  xt.forEach((x,i) => { const d = new Date(x); g += `<text x="${X(x)}" y="${H-8}" text-anchor="${i===0?"start":i===2?"end":"middle"}">${MON[d.getMonth()]} ${d.getDate()}</text>`; });
+  { let lastY = 1e9; for (const v of t){ const y = Y(v), show = lastY - y >= 18; if (show) lastY = y; g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/>${show ? `<text x="${L-8}" y="${y+4}" text-anchor="end">${fmt1(v)}</text>` : ""}`; } }
+  { const day = x => { const d = new Date(x); d.setHours(0,0,0,0); return +d; }, d0 = day(x0), d1 = day(x1), span = Math.round((d1-d0)/864e5);
+    const slots = Math.max(1, Math.min(span, Math.floor((W-L-R)/110))), seen = new Set(), xt = [];
+    for (let i = 0; i <= slots; i++){ const d = slots ? day(d0 + (d1-d0)*i/slots + 432e5) : d0; if (!seen.has(d)){ seen.add(d); xt.push(d); } if (!span) break; }
+    let lastR = -1e9; xt.forEach((x,i) => { const px = span ? X(clamp(x, x0, x1)) : (L+W-R)/2, dt = new Date(x), lab = `${MON[dt.getMonth()]} ${dt.getDate()}`, wd = lab.length*6.6;
+      const anc = !span ? "middle" : i===0 ? "start" : i===xt.length-1 ? "end" : "middle", left = anc==="start" ? px : anc==="end" ? px-wd : px-wd/2;
+      if (left < lastR + 10) return; lastR = left + wd; g += `<text x="${px}" y="${H-8}" text-anchor="${anc}">${lab}</text>`; }); }
   for (const s of series){
     if (s.pts.length < 1) continue;
     const d = s.pts.map((p,i)=>`${i?"L":"M"}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(" ");
@@ -1395,7 +1472,7 @@ function V_today0(){
   <section class="card"><div class="card-head"><h2>Today's meals</h2><span class="small muted">From your ${GOALS[p.goal].toLowerCase()} plan</span></div>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${plan[di].meals.map((m,mi)=>mealCard(m, di, mi, loggedSlots.has(m.slot))).join("")}</div></section>`;
 }
-function mealCard(m, di, mi, logged){
+function mealCard0(m, di, mi, logged){
   return `<div class="meal"><div class="row"><span class="slot">${m.slot}</span><span class="spacer"></span><span class="num" style="font-weight:700">${fmt(m.t.kcal)} kcal</span></div>
   <h3>${esc(m.name)}</h3>${srcBadge(m.src)}<ul>${m.items.map(([id,q])=>`<li><span>${esc(FOOD[id].name)}</span><span class="num">${esc(qtyText(q, FOOD[id].serv))}</span></li>`).join("")}</ul>${macroLine(m.t)}${stepsBlock(m.steps)}
   <button class="btn sm ${logged?"":"primary"}" data-act="logMeal" data-day="${di}" data-meal="${mi}">${logged?"Log again":"Log this meal"}</button></div>`;
@@ -2470,7 +2547,7 @@ A.closeSheet = () => closeSheet();
 /* ---------- quick actions (+ button) ---------- */
 SHEETS.quick = () => ({title:"Quick add", body:`<div class="qgrid">
   ${[["qSearch","search","Search food","Millions of foods & drinks"],["qScan","scan","Scan barcode","Packaged foods"],["qPhoto","camera","Snap a meal","AI estimates it for you"],["qSay","mic","Say it","\"2 eggs and toast\""],
-     ["qWeight","scale","Log weight","Updates your trend"],["qWorkout","workouts","Start workout","Today's session"],["qWater","water","Add water","One glass"],["qRecipe","plan","New recipe","Build & save a meal"]]
+     ["qWeight","scale","Log weight","Updates your trend"],["qWorkout","workouts","Start workout","Today's session"],["qWater","water","Add water","One glass"],["qRecipe","plan","New recipe","Build & save a meal"],["menuScan","eatout","Scan a menu","Best picks when eating out"],["pantryOpen","nutrition","Cook with what I have","Meals from your fridge"],["openSleep","moon","Log sleep","Hours last night"],["fastQuick","clock","Start a fast","16:8 and more"]]
     .map(([a,i,t,s]) => `<button class="qbtn" data-act="${a}"><span class="qi">${ICON[i]}</span><b>${t}</b><small>${s}</small></button>`).join("")}</div>`});
 A.quick = () => openSheet("quick");
 A.qWeight = () => openSheet("weigh");
@@ -2828,7 +2905,7 @@ function V_nutrition(){
   const water = (state.health.water || {})[k] || 0;
   return `<div class="pagehead"><div><h1>Food</h1><p class="sub">${fmt(c.target)} kcal · ${c.protein} g protein target${p.adaptive !== false && p.tdeeEst ? " · adaptive" : ""}</p></div>
     <div class="row"><button class="btn icon" data-act="nutDate" data-d="-1" aria-label="Previous day">${ICON.left}</button><b style="min-width:130px;text-align:center">${label}</b><button class="btn icon" data-act="nutDate" data-d="1" aria-label="Next day" ${isToday?"disabled":""}>${ICON.right}</button>${isToday?"":`<button class="btn sm" data-act="nutToday">Today</button>`}</div></div>
-  <div class="logbar"><button class="logbtn primary" data-act="qSearch">${ICON.search}<span>Search</span></button><button class="logbtn" data-act="qScan">${ICON.scan}<span>Barcode</span></button><button class="logbtn" data-act="qPhoto">${ICON.camera}<span>Photo</span></button><button class="logbtn" data-act="qSay">${ICON.mic}<span>Say it</span></button><button class="logbtn" data-act="water">${ICON.water}<span>Water · ${water}</span></button></div>
+  <div class="logbar"><button class="logbtn primary" data-act="qSearch">${ICON.search}<span>Search</span></button><button class="logbtn" data-act="qScan">${ICON.scan}<span>Barcode</span></button><button class="logbtn" data-act="qPhoto">${ICON.camera}<span>Photo</span></button><button class="logbtn" data-act="qSay">${ICON.mic}<span>Say it</span></button><button class="logbtn" data-act="menuScan">${ICON.eatout}<span>Menu</span></button><button class="logbtn" data-act="water">${ICON.water}<span>Water · ${water}</span></button></div>
   <div class="grid g-side">
     <div class="stack">
       <section class="card"><div class="ringwrap">${ring(t.kcal, c.target, fmt(Math.max(0, c.target - t.kcal)), t.kcal <= c.target ? "kcal left" : `${fmt(t.kcal - c.target)} over`)}${macroBlock(t,c)}</div></section>
@@ -3855,9 +3932,11 @@ const PLAN_INFO = {
   family_month:{name:"Family", price:24.99, per:"month", blurb:"You plus 4 people in your household"},
   family_year:{name:"Family annual", price:199, per:"year", blurb:"You plus 4, billed once a year", save:24.99*12-199},
   coach_month:{name:"Coach", price:29.99, per:"month", blurb:"Client dashboard for up to 25 clients"},
-  coach_unlimited_month:{name:"Coach Unlimited", price:49.99, per:"month", blurb:"Unlimited clients"}
+  coach_unlimited_month:{name:"Coach Unlimited", price:49.99, per:"month", blurb:"Unlimited clients"},
+  fleet_month:{name:"Fleet", price:10, per:"month", blurb:"20-seat minimum. $10 a seat for 20–50, $8 a seat for 51+", seat:true}
 };
-const planLine = k => { const p = PLAN_INFO[k]; return p ? `${p.name} · ${money(p.price)}/${p.per}` : "Founding member · $12.99/month"; };
+const fleetUnit = n => n > 50 ? 8 : 10, FLEET_MIN = 20;
+const planLine = k => { const p = PLAN_INFO[k]; if (k === "fleet_month"){ const u = me(), n = (u && u.fleet && u.fleet.seats) || 1; return `Fleet · ${n} seats × ${money(fleetUnit(n))} = ${money(fleetUnit(n)*n)}/month`; } return p ? `${p.name} · ${money(p.price)}/${p.per}` : "Founding member · $12.99/month"; };
 SHEETS.plans = () => {
   const u = me(), cur = u && u.sub.ownPlan, active = u && u.sub.active && u.sub.via === "own";
   const card = k => { const p = PLAN_INFO[k], on = active && cur === k && !u.sub.legacy;
@@ -3868,9 +3947,26 @@ SHEETS.plans = () => {
     <span class="eyebrow">Just you</span><div class="grid g-2">${card("individual_month")}${card("individual_year")}</div>
     <span class="eyebrow">Your household</span><div class="grid g-2">${card("family_month")}${card("family_year")}</div>
     <span class="eyebrow">Trainers & coaches</span><div class="grid g-2">${card("coach_month")}${card("coach_unlimited_month")}</div>
+    <span class="eyebrow">Companies & fleets</span>${fleetPlanCard(active && cur === "fleet_month")}
     <p class="small muted">${active ? "Switching takes effect now. Stripe credits the unused part of your current plan toward the new one." : "Every plan starts with a 7-day free trial if you haven't had one. Cancel any time."}</p></div>`};
 };
 A.openPlans = () => openSheet("plans");
+function fleetPlanCard(on){
+  return `<div class="plancard ${on ? "on" : ""}"><div class="row"><b>Fleet & company wellness</b><span class="spacer"></span><span class="num"><b>$8–10</b><small class="muted">/seat/month</small></span></div>
+    <p class="small muted"><b>20-seat minimum.</b> $10 per seat for 20–50 seats, $8 per seat for 51 or more. Buy seats for your drivers or employees. Each person gets full Premium on their own private account: meal plans, food logging, workouts, DOT physical prep, sleep and fasting. Coach tools aren't included. You see who joined and who's active, never their health data.</p>
+    ${on ? `<span class="small" style="color:var(--good);font-weight:700">Your plan · manage seats under Account</span>` : `<form class="row" data-form="fleetBuy"><input id="fbCo" type="text" placeholder="Company name" maxlength="80" style="flex:2;min-width:160px" aria-label="Company name"><input id="fbSeats" type="number" min="20" max="5000" value="20" style="width:90px" aria-label="Number of seats"><button class="btn sm primary">Set up fleet</button></form><p class="small muted" id="fbTotal">20 seats × $10.00 = $200.00/month</p>`}</div>`;
+}
+document.addEventListener("input", e => { if (e.target.id === "fbSeats"){ const n = Math.round(+e.target.value || 0), t = $("#fbTotal"); if (t) t.textContent = n < FLEET_MIN ? `Fleet plans start at ${FLEET_MIN} seats` : `${n} seats × ${money(fleetUnit(n))} = ${money(n*fleetUnit(n))}/month`; } });
+document.addEventListener("submit", async e => { const f = e.target.closest('[data-form="fleetBuy"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  const u = me(), seats = Math.round(+$("#fbSeats").value || 0), company = $("#fbCo").value.trim(), btn = f.querySelector("button");
+  if (company.length < 2) return toast("Enter your company name");
+  if (!(seats >= FLEET_MIN)) return toast(`Fleet plans start at ${FLEET_MIN} seats`);
+  const active = u && u.sub.active && u.sub.via === "own";
+  if (active && !confirm(`Switch your membership to a Fleet plan with ${seats} seats (${money(seats*fleetUnit(seats))}/month)? Your own access stays included.`)) return;
+  btn.disabled = true;
+  try { if (active){ const j = await api("billing/change", {plan:"fleet_month", seats, company}); window.RR_USER = j.user; closeSheet(); render(); toast("Fleet plan is on. Invite your drivers under Account."); }
+    else { const j = await api("billing/checkout", {plan:"fleet_month", seats, company}); location.href = j.url; } }
+  catch (x){ toast(x.message); btn.disabled = false; } }, true);
 A.pickPlan = async el => {
   const k = el.dataset.p, u = me(), p = PLAN_INFO[k];
   const active = u && u.sub.active && u.sub.via === "own";
@@ -3885,8 +3981,8 @@ const fam = {list:null, err:""};
 async function famLoad(){ try { fam.list = (await api("family/list")).members; } catch (e){ fam.err = e.message; } if (ui.view === "profile" && !isTyping()) render(); }
 function rrAccountCard(){
   const u = me(), st = u.sub.status, d = t => t ? new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "";
-  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : planLine(u.sub.legacy ? null : u.sub.ownPlan);
-  const line = u.sub.via === "family" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
+  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : u.sub.via === "fleet" ? `Premium · covered by ${esc(u.sub.fleetCompany)}` : u.sub.active || u.sub.status !== "none" ? planLine(u.sub.legacy ? null : u.sub.ownPlan) : "Free";
+  const line = u.sub.via === "family" || u.sub.via === "fleet" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
   if (u.family && fam.list === null){ fam.list = []; famLoad(); }
   return `<section class="card stack"><h2>Account & billing</h2>
     <div class="kv"><span>Email</span><span>${esc(u.email)}</span></div><div class="kv"><span>Plan</span><span>${plan}</span></div><div class="kv"><span>Status</span><span>${esc(line)}</span></div>
@@ -3894,7 +3990,8 @@ function rrAccountCard(){
     ${u.family ? `<div class="stack"><span class="eyebrow">Your household · ${fam.list ? fam.list.length : 0} of 4 added</span>
       <div class="list">${(fam.list || []).map(m => `<div class="li"><div class="main"><b>${esc(m.name || m.email)}</b><small>${esc(m.email)} · ${m.joined ? "joined" : "invited, not signed up yet"}</small></div><button class="btn sm danger" data-act="famRemove" data-e="${esc(m.email)}">Remove</button></div>`).join("")}</div>
       ${(fam.list || []).length < 4 ? `<form class="row" data-form="famAdd"><input id="famEmail" type="email" placeholder="Their email" style="flex:1;min-width:180px" aria-label="Family member email"><button class="btn sm primary">Add</button></form><p class="small muted">They create an account with that email and get full access, no card needed.</p>` : ""}</div>` : ""}
-    <div class="row">${u.sub.via !== "family" ? `<button class="btn sm" data-act="openPlans">Change plan</button><button class="btn sm" data-rr="portal">Manage billing</button>` : ""}<button class="btn sm" data-rr="logout">Log out</button><button class="btn sm danger" data-rr="delAsk">Delete account</button></div>
+    ${u.fleet ? fleetPanel() : ""}${!u.sub.active ? `<form class="row" data-form="fleetJoin"><input id="fjCode" type="text" placeholder="Company or fleet code" maxlength="12" style="flex:1;min-width:160px;text-transform:uppercase" aria-label="Company code"><button class="btn sm">Join my company</button></form><p class="small muted">If your employer or fleet covers Rep &amp; Ration, enter their code to unlock Premium.</p>` : ""}
+    <div class="row">${u.sub.via !== "family" && u.sub.via !== "fleet" ? `<button class="btn sm" data-act="openPlans">Change plan</button><button class="btn sm" data-rr="portal">Manage billing</button>` : ""}<button class="btn sm" data-rr="logout">Log out</button><button class="btn sm danger" data-rr="delAsk">Delete account</button></div>
     ${rrDel ? `<div class="confirm"><span>Delete your account, cancel your subscription and erase your data? This can't be undone.</span><button class="btn sm danger" data-rr="delYes">Delete my account</button><button class="btn sm" data-rr="delNo">Cancel</button></div>` : ""}
     <p class="small muted">Billing is handled by Stripe. Cancel any time from Manage billing. <a href="/terms.html" target="_blank">Terms</a> · <a href="/privacy.html" target="_blank">Privacy</a> · <a href="/support.html" target="_blank">Help</a></p></section>`;
 }
@@ -3969,6 +4066,36 @@ A.exportCSV = () => {
   setTimeout(() => downloadFile(`rep-and-ration-weight-${todayKey()}.csv`, w.join("\n"), "text/csv"), 400);
   setTimeout(() => downloadFile(`rep-and-ration-workouts-${todayKey()}.csv`, s.join("\n"), "text/csv"), 800);
 };
+
+/* ---------- fleet seats (manager side) ---------- */
+const fleet = {data:null, err:"", busy:false};
+async function fleetLoad(route = "fleet/list", body = {}){ fleet.busy = true; try { fleet.data = await api(route, body); fleet.err = ""; } catch (e){ fleet.err = e.message; toast(e.message); } fleet.busy = false; if (ui.view === "profile" && !isTyping()) render(); return fleet.data; }
+function fleetPanel(){
+  if (!fleet.data && !fleet.busy && !fleet.err) fleetLoad();
+  const d = fleet.data; if (!d) return `<div class="loading"><span class="spin"></span> Loading your fleet…</div>`;
+  const ago = t => { if (!t) return "not active yet"; const h = (Date.now() - new Date(t))/36e5; return h < 24 ? "active today" : h < 48 ? "active yesterday" : `active ${Math.floor(h/24)} days ago`; };
+  return `<div class="stack fleetbox"><div class="row"><span class="eyebrow" style="flex:1">${esc(d.company || "Your fleet")} · ${d.used} of ${d.seats} seats used</span><button class="btn sm ghost" data-act="fleetRename">Rename</button></div>
+    <div class="grid g-3 fleetstats"><div><b>${d.seats}</b><small>seats · ${money(d.seats*fleetUnit(d.seats))}/mo</small></div><div><b>${d.drivers.filter(x => x.joined).length}</b><small>signed up</small></div><div><b>${d.activeWeek}</b><small>active this week</small></div></div>
+    <div class="row" style="gap:8px"><span class="small muted">Join code</span><b class="mono" style="letter-spacing:.14em;font-size:1.15rem;flex:1">${esc(d.code || "")}</b><button class="btn sm" data-act="fleetCopy">Copy invite</button><button class="btn sm ghost" data-act="fleetNewCode">New code</button></div>
+    <p class="small muted">Drivers create a free account, then enter this code under Profile → Account to unlock Premium. Or add their emails below and they're covered the moment they sign up.</p>
+    <form class="stack" data-form="fleetAdd"><textarea id="fleetEmails" rows="2" placeholder="Driver emails, separated by commas or new lines" aria-label="Driver emails"></textarea><div class="row"><button class="btn sm primary">Add drivers</button><span class="small muted">${d.seats - d.used} open seat${d.seats - d.used === 1 ? "" : "s"}</span></div></form>
+    <form class="row" data-form="fleetSeats"><label class="small" style="flex:1">Seats on the plan</label><input id="fleetSeatN" type="number" min="${Math.max(FLEET_MIN, d.used)}" max="5000" value="${d.seats}" style="width:100px"><button class="btn sm">Update seats</button></form>
+    ${d.drivers.length ? `<div class="list">${d.drivers.map(m => `<div class="li"><div class="main"><b>${esc(m.name || m.email)}</b><small>${esc(m.email)} · ${m.joined ? ago(m.lastActive) : "invited, not signed up yet"}</small></div><button class="btn sm danger" data-act="fleetRemove" data-e="${esc(m.email)}">Remove</button></div>`).join("")}</div>` : `<p class="small muted">No drivers yet.</p>`}
+    <p class="small muted">Privacy: you see names, emails and whether people are using the app. Their food, weight, sleep, blood pressure and DOT prep stay private to them.</p></div>`;
+}
+A.fleetRemove = el => { if (confirm(`Remove ${el.dataset.e}? Their Premium access ends and the seat opens up.`)) fleetLoad("fleet/remove", {email:el.dataset.e}); };
+A.fleetNewCode = () => { if (confirm("Make a new join code? The old code stops working. Drivers who already joined keep their seats.")) fleetLoad("fleet/newcode"); };
+A.fleetRename = () => { const n = prompt("Company name", (fleet.data && fleet.data.company) || ""); if (n) fleetLoad("fleet/company", {company:n}); };
+A.fleetCopy = async () => { const d = fleet.data; const t = `${d.company} covers Rep & Ration Premium for you. 1) Create a free account at ${location.origin} 2) Go to Profile → Account and enter code ${d.code}.`;
+  try { await navigator.clipboard.writeText(t); toast("Invite copied"); } catch { prompt("Copy this invite", t); } };
+document.addEventListener("submit", async e => {
+  const f = e.target.closest('[data-form="fleetAdd"],[data-form="fleetSeats"],[data-form="fleetJoin"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  const k = f.dataset.form;
+  if (k === "fleetAdd"){ const r = await fleetLoad("fleet/add", {emails:$("#fleetEmails").value}); if (r && !fleet.err) toast("Drivers added. They're covered as soon as they sign up."); }
+  else if (k === "fleetSeats"){ const n = Math.round(+$("#fleetSeatN").value || 0), d = fleet.data; if (n === d.seats) return; if (n < FLEET_MIN) return toast(`Fleet plans need at least ${FLEET_MIN} seats`); if (!confirm(`Change to ${n} seats (${money(n*fleetUnit(n))}/month)? ${me().sub.status === "trialing" ? "" : "Stripe prorates the difference."}`)) return; const r = await fleetLoad("fleet/seats", {seats:n}); if (r && !fleet.err){ if (window.RR_USER && RR_USER.fleet) RR_USER.fleet.seats = r.seats; toast(`Fleet now has ${r.seats} seats`); } }
+  else { const btn = f.querySelector("button"); btn.disabled = true;
+    try { const j = await api("fleet/join", {code:$("#fjCode").value}); window.RR_USER = j.user; render(); toast(`Welcome aboard. ${j.company || "Your company"} covers your Premium.`); } catch (x){ toast(x.message); btn.disabled = false; } }
+}, true);
 
 /* ======================================================================
    Setup wizard, profile settings for the new features, and Today page additions.
@@ -4140,6 +4267,474 @@ function roadCard(){
     <p class="small muted">Walking tip: 10 minutes of laps around the lot is about 1,000 steps. Do one at every stop.</p></section>`;
 }
 
+/* ======================================================================
+   DOT physical prep (for CDL drivers) + sleep, water, steps and fasting habits.
+   Thresholds follow FMCSA medical-examiner guidance; the examiner always makes the call.
+   ====================================================================== */
+const dotState = () => { const h = state.health; h.dot ||= {examDate:"", certExpires:"", diabetes:"no", insulin:false, glucose:[], neck:"", stopbang:{}, vision:"", hearing:"", meds:""}; return h.dot; };
+const meanOf = a => a.length ? a.reduce((x,y) => x + y, 0)/a.length : null;
+function lastBP(n = 7){ const bp = (state.health.bp || []).slice(-n); if (!bp.length) return null; return {sys: Math.round(meanOf(bp.map(x => x[1]))), dia: Math.round(meanOf(bp.map(x => x[2]))), n: bp.length, last: bp[bp.length-1]}; }
+function bpDot(b){
+  if (!b) return {level:"none", label:"No readings yet", note:"Log 3–7 readings in the weeks before your exam, seated and rested for 5 minutes."};
+  const {sys, dia} = b;
+  if (sys >= 180 || dia >= 110) return {level:"bad", label:"Disqualifying range", note:"Examiners won't certify at 180/110 or higher until it's brought down to 140/90 or lower. See your doctor before the exam."};
+  if (sys >= 160 || dia >= 100) return {level:"warn", label:"3-month certificate range", note:"Stage 2 (160–179 / 100–109) usually means a one-time 3-month certificate while you get it under 140/90."};
+  if (sys >= 140 || dia >= 90) return {level:"warn", label:"1-year certificate range", note:"Stage 1 (140–159 / 90–99) usually means a 1-year certificate instead of 2."};
+  return {level:"good", label:"2-year certificate range", note:"Under 140/90 is the range for a full 2-year certificate."};
+}
+function sleepAvg(n = 7){ const s = state.health.sleep || {}, keys = Object.keys(s).sort().slice(-n); const v = keys.map(k => s[k]).filter(x => x > 0); return v.length ? {avg: meanOf(v), n: v.length} : null; }
+const STOPBANG = [["snore","Do you snore loudly (heard through a closed door)?"],["tired","Do you often feel tired or sleepy during the day?"],["observed","Has anyone seen you stop breathing or choke in your sleep?"],["pressure","Do you have or are you treated for high blood pressure?"],["bmi","Is your BMI over 35?"],["age","Are you over 50?"],["neck","Is your neck over 17 in (men) or 16 in (women)?"],["male","Are you male?"]];
+function stopBang(){ const d = dotState(), p = state.profile, c = calc(p), a = Object.assign({}, d.stopbang);
+  if (a.bmi == null) a.bmi = c.bmi > 35; if (a.age == null) a.age = p.age > 50; if (a.male == null) a.male = p.sex === "male";
+  const b = lastBP(); if (a.pressure == null && b) a.pressure = b.sys >= 140 || b.dia >= 90;
+  const score = STOPBANG.filter(([k]) => a[k]).length; return {a, score, risk: score >= 5 ? "high" : score >= 3 ? "intermediate" : "low"}; }
+function daysUntil(k){ if (!k) return null; return Math.round((pkey(k) - pkey(todayKey()))/864e5); }
+function dotReadiness(){
+  const b = bpDot(lastBP()), s = sleepAvg(), sb = stopBang(), c = calc(state.profile), d = dotState();
+  const items = [
+    {k:"Blood pressure", ok: b.level === "good", warn: b.level === "warn", bad: b.level === "bad", none: b.level === "none", text: lastBP() ? `${lastBP().sys}/${lastBP().dia} average · ${b.label}` : b.label},
+    {k:"Sleep", ok: s && s.avg >= 7, warn: s && s.avg < 7, none: !s, text: s ? `${fmt1(s.avg)} h a night (last ${s.n} nights)` : "Log your sleep for a week"},
+    {k:"Sleep apnea screen", ok: sb.risk === "low", warn: sb.risk !== "low", text: `STOP-BANG ${sb.score}/8 · ${sb.risk} risk`},
+    {k:"Body mass index", ok: c.bmi < 35, warn: c.bmi >= 35 && c.bmi < 40, bad: c.bmi >= 40, text: `BMI ${fmt1(c.bmi)}${c.bmi >= 40 ? " · examiners often require sleep testing at 40+" : ""}`},
+    {k:"Blood sugar", ok: d.diabetes === "no", warn: d.diabetes !== "no", text: d.diabetes === "no" ? "No diabetes reported" : d.insulin ? "Insulin-treated: bring form MCSA-5870 from your doctor" : "Diabetes: bring your recent A1C and med list"},
+    {k:"Vision & hearing", ok: d.vision === "pass" && d.hearing === "pass", warn: d.vision === "fail" || d.hearing === "fail", none: !d.vision || !d.hearing, text: d.vision === "pass" && d.hearing === "pass" ? "Self-check passed" : "20/40 each eye and a forced whisper at 5 ft"}
+  ];
+  const score = Math.round(items.reduce((a,i) => a + (i.ok ? 1 : i.warn || i.none ? 0.5 : 0), 0)/items.length*100);
+  return {items, score};
+}
+function V_dot(){
+  const d = dotState(), r = dotReadiness(), exam = daysUntil(d.examDate), cert = daysUntil(d.certExpires), sb = stopBang(), b = lastBP(), bd = bpDot(b);
+  const icon = i => i.bad ? `<span class="pill high">Act now</span>` : i.warn ? `<span class="pill med">Watch</span>` : i.none ? `<span class="pill neutral">Log it</span>` : `<span class="pill low">On track</span>`;
+  const bpRows = (state.health.bp || []).slice(-8).reverse();
+  return `<div class="pagehead"><div><h1>DOT physical prep</h1><p class="sub">Get ready for your CDL medical exam</p></div></div>
+  <div class="grid g-3">
+    <section class="card stack"><span class="eyebrow">Readiness</span><div class="big" style="font-size:2.6rem;color:${r.score >= 80 ? "var(--good)" : r.score >= 55 ? "var(--warn)" : "var(--bad)"}">${r.score}%</div><p class="small muted">Based on your logs and answers below.</p></section>
+    <section class="card stack"><span class="eyebrow">Next exam</span><div class="big" style="font-size:2.2rem">${exam == null ? "—" : exam < 0 ? "Past" : exam + " days"}</div><label class="f">Exam date<input type="date" value="${d.examDate}" data-field="dotExam"></label></section>
+    <section class="card stack"><span class="eyebrow">Medical card expires</span><div class="big" style="font-size:2.2rem;${cert != null && cert < 45 ? "color:var(--warn)" : ""}">${cert == null ? "—" : cert < 0 ? "Expired" : cert + " days"}</div><label class="f">Expiration date<input type="date" value="${d.certExpires}" data-field="dotCert"></label></section>
+  </div>
+  <section class="card stack"><h2>Checklist</h2><div class="list">${r.items.map(i => `<div class="li"><div class="main"><b>${i.k}</b><small>${esc(i.text)}</small></div>${icon(i)}</div>`).join("")}</div></section>
+  <div class="grid g-2">
+    <section class="card stack"><h2>Blood pressure</h2><p class="small muted">${esc(bd.note)}</p>
+      <form class="row" data-form="dotBP"><label class="f" style="width:110px">Top (systolic)<input id="dotSys" type="number" min="70" max="260" inputmode="numeric" required></label><label class="f" style="width:110px">Bottom (diastolic)<input id="dotDia" type="number" min="40" max="160" inputmode="numeric" required></label><button class="btn primary">Save</button></form>
+      ${bpRows.length ? `<div class="list">${bpRows.map(x => `<div class="li"><div class="main"><b class="num">${x[1]}/${x[2]}</b><small>${new Date(x[0]).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</small></div>${icon({ok:bpDot({sys:x[1],dia:x[2]}).level === "good", warn:bpDot({sys:x[1],dia:x[2]}).level === "warn", bad:bpDot({sys:x[1],dia:x[2]}).level === "bad"})}</div>`).join("")}</div>` : ""}
+      <p class="note">Tips that help before an exam: cut sodium and caffeine for a few days, sleep well the night before, sit quietly for 5 minutes, and take your usual meds. Never stop a prescribed medication on your own.</p></section>
+    <section class="card stack"><h2>Sleep</h2>${sleepCard(true)}</section>
+  </div>
+  <section class="card stack"><h2>Sleep apnea screen (STOP-BANG)</h2><p class="small muted">A score of 3 or more means you should ask your doctor about a sleep study. Treated sleep apnea (using CPAP) doesn't stop you from driving.</p>
+    <div class="list">${STOPBANG.map(([k,q]) => `<label class="check"><input type="checkbox" data-act="dotSB" data-k="${k}" ${sb.a[k] ? "checked" : ""}><span style="text-decoration:none;color:var(--ink)">${q}</span></label>`).join("")}</div>
+    <p><b>Score ${sb.score}/8</b> · ${sb.risk} risk</p></section>
+  <div class="grid g-2">
+    <section class="card stack"><h2>Blood sugar</h2>
+      <label class="f">Diabetes<select data-field="dotDiab"><option value="no" ${d.diabetes==="no"?"selected":""}>No</option><option value="pre" ${d.diabetes==="pre"?"selected":""}>Prediabetes</option><option value="t2" ${d.diabetes==="t2"?"selected":""}>Yes, diet or pills</option><option value="ins" ${d.diabetes==="ins"?"selected":""}>Yes, insulin</option></select></label>
+      <form class="row" data-form="dotGlu"><label class="f" style="width:150px">Fasting glucose (mg/dL)<input id="dotGlu" type="number" min="40" max="600" inputmode="numeric" required></label><button class="btn">Save</button></form>
+      ${(d.glucose || []).length ? `<p class="small muted">Last: ${d.glucose.slice(-5).map(g => g[1]).join(", ")} mg/dL</p>` : ""}
+      <p class="note">On insulin? Your treating doctor must complete form MCSA-5870 within 45 days before the exam, and certificates last up to 1 year.</p></section>
+    <section class="card stack"><h2>Vision, hearing & meds</h2>
+      <label class="f">Vision self-check<select data-field="dotVision"><option value="" ${!d.vision?"selected":""}>Not checked</option><option value="pass" ${d.vision==="pass"?"selected":""}>I can read 20/40 with each eye (glasses OK)</option><option value="fail" ${d.vision==="fail"?"selected":""}>Not sure / struggling</option></select></label>
+      <label class="f">Hearing self-check<select data-field="dotHearing"><option value="" ${!d.hearing?"selected":""}>Not checked</option><option value="pass" ${d.hearing==="pass"?"selected":""}>I hear a whisper at 5 feet (aids OK)</option><option value="fail" ${d.hearing==="fail"?"selected":""}>Not sure</option></select></label>
+      <label class="f">Medications to bring a list of<textarea rows="2" data-field="dotMeds" placeholder="Name, dose, what it's for">${esc(d.meds)}</textarea></label></section>
+  </div>
+  <section class="card stack"><h2>What to bring to the exam</h2><ul class="small" style="margin:0;padding-left:18px;line-height:1.8"><li>Driver's license and glasses, contacts or hearing aids</li><li>A list of every medication, dose and prescribing doctor</li><li>Recent records for any condition you're treated for (heart, diabetes, sleep apnea with CPAP usage report)</li><li>Form MCSA-5870 if you use insulin</li><li>Find a certified examiner on the FMCSA National Registry</li></ul>
+    <p class="note">General guidance only, not medical advice. Your certified medical examiner decides certification.</p></section>`;
+}
+RENDER.dot = () => V_dot();
+VIEWS.splice(VIEWS.findIndex(v => v.id === "devices"), 0, {id:"dot", label:"DOT prep"});
+ICON.dot = ICON.truck;
+document.addEventListener("submit", e => {
+  const f = e.target.closest('[data-form="dotBP"],[data-form="dotGlu"],[data-form="sleepLog"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  const h = state.health;
+  if (f.dataset.form === "dotBP"){ const s = +$("#dotSys").value, d = +$("#dotDia").value; if (!(s > 60 && s < 260 && d > 30 && d < 160)) { toast("Enter both numbers, e.g. 128 and 82."); return; } h.bp.push([Date.now(), Math.round(s), Math.round(d)]); toast("Reading saved"); }
+  else if (f.dataset.form === "dotGlu"){ const g = +$("#dotGlu").value; if (!(g > 30 && g < 700)) return; dotState().glucose.push([Date.now(), Math.round(g)]); dotState().glucose = dotState().glucose.slice(-60); toast("Saved"); }
+  else { const v = +$("#sleepH").value, k = $("#sleepD").value || todayKey(); if (!(v > 0 && v <= 16)) { toast("Enter hours slept, e.g. 7.5."); return; } h.sleep[k] = v; toast(`${fmt1(v)} h saved for ${shortDate(k)}`); if (sheet.open) closeSheet(); }
+  persist("health"); render();
+}, true);
+A.dotSB = el => { dotState().stopbang[el.dataset.k] = el.checked; persist("health"); render(); };
+document.addEventListener("change", e => { const el = e.target, f = el.dataset && el.dataset.field; if (!f || !state) return; const d = dotState();
+  const map = {dotExam:"examDate", dotCert:"certExpires", dotVision:"vision", dotHearing:"hearing", dotMeds:"meds"};
+  if (map[f]){ d[map[f]] = el.value; persist("health"); if (f !== "dotMeds") render(); }
+  else if (f === "dotDiab"){ d.diabetes = el.value; d.insulin = el.value === "ins"; persist("health"); render(); } });
+
+/* ---------- sleep ---------- */
+function sleepCard(inDot){
+  const s = state.health.sleep || {}, days = []; for (let i = 13; i >= 0; i--){ const k = dkey(addDays(new Date(), -i)); days.push([k, s[k] || 0]); }
+  const avg = sleepAvg(7), max = 10;
+  return `${avg ? `<p><span class="big" style="font-size:1.8rem">${fmt1(avg.avg)} h</span> <span class="muted small">average, last ${avg.n} nights · adults need 7+</span></p>` : `<p class="small muted">No sleep logged yet.</p>`}
+    <div class="sleepbars">${days.map(([k,v]) => `<div title="${shortDate(k)}: ${v ? fmt1(v) + " h" : "not logged"}"><i style="height:${clamp(v/max*100,0,100)}%;background:${!v ? "var(--surface-2)" : v >= 7 ? "var(--accent)" : v >= 6 ? "var(--warn)" : "var(--bad)"}"></i><small>${DAYS[wIdx(pkey(k))][0]}</small></div>`).join("")}</div>
+    <form class="row" data-form="sleepLog"><label class="f" style="width:110px">Hours slept<input id="sleepH" type="number" min="0" max="16" step="0.25" inputmode="decimal" required placeholder="7.5"></label><label class="f" style="width:160px">Night of<input id="sleepD" type="date" value="${todayKey()}" max="${todayKey()}"></label><button class="btn ${inDot ? "primary" : ""}">Log sleep</button></form>`;
+}
+SHEETS.sleep = () => ({title:"Log sleep", body:`<div class="stack">${sleepCard(true)}</div>`});
+
+/* ---------- daily habits: water, steps, fasting ---------- */
+const FASTS = [["16:8",16],["18:6",18],["20:4",20],["OMAD 23:1",23],["14:10",14],["12:12",12]];
+function habitsCard(){
+  const h = state.health, k = todayKey(), w = (h.water || {})[k] || 0, goal = state.profile.waterGoal || 8, st = (h.steps || {})[k] || 0, stepGoal = state.profile.stepGoal || 8000;
+  const f = h.fast || {}, on = f.start && !f.end, elapsed = on ? (Date.now() - f.start)/36e5 : 0, pct = on ? clamp(elapsed/(f.goal||16)*100, 0, 100) : 0;
+  return `<section class="card stack habits"><div class="card-head" style="margin:0"><h2>Daily habits</h2><span class="small muted">${shortDate(k)}</span></div>
+    <div class="grid g-3">
+      <div class="habit"><span class="eyebrow">Water</span><div><span class="big num" style="font-size:1.7rem">${w}</span><span class="muted"> / ${goal} glasses</span></div><div class="track"><i style="width:${clamp(w/goal*100,0,100)}%;background:var(--protein)"></i></div><div class="row"><button class="btn sm" data-act="waterMinus" aria-label="Remove a glass">−</button><button class="btn sm primary" data-act="water">${ICON.water} Add glass</button></div></div>
+      <div class="habit"><span class="eyebrow">Steps</span><div><span class="big num" style="font-size:1.7rem">${fmt(st)}</span><span class="muted"> / ${fmt(stepGoal)}</span></div><div class="track"><i style="width:${clamp(st/stepGoal*100,0,100)}%;background:var(--accent)"></i></div><form class="row" data-form="steps"><input id="stepsIn" type="number" min="0" max="100000" inputmode="numeric" placeholder="Steps today" style="flex:1;min-width:90px"><button class="btn sm">Save</button></form></div>
+      <div class="habit"><span class="eyebrow">Fasting</span>${on ? `<div><span class="big num" style="font-size:1.7rem">${Math.floor(elapsed)}h ${pad(Math.floor(elapsed%1*60))}m</span><span class="muted"> / ${f.goal}h</span></div><div class="track"><i style="width:${pct}%;background:var(--sugar)"></i></div><p class="small muted">${elapsed >= f.goal ? "Goal reached. Break your fast when you're ready." : `Ends ${new Date(f.start + f.goal*36e5).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}`}</p><button class="btn sm" data-act="fastEnd">End fast</button>`
+        : `<p class="small muted">${(h.fastLog || []).length ? `Last fast: ${fmt1(h.fastLog[0].h)} h` : "Pick a window to start."}</p><div class="row">${FASTS.slice(0,4).map(([l,g]) => `<button class="chip" data-act="fastStart" data-g="${g}">${l}</button>`).join("")}</div>`}</div>
+    </div>
+    <div class="row"><button class="btn sm ghost" data-act="openSleep">Log last night's sleep</button></div></section>`;
+}
+A.waterMinus = () => { const h = state.health, k = todayKey(); h.water[k] = Math.max(0, (h.water[k] || 0) - 1); persist("health"); render(); };
+A.fastStart = el => { if (!premiumGate("Fasting timer")) return; state.health.fast = {start: Date.now(), goal: +el.dataset.g}; persist("health"); render(); toast(`Fast started · ${el.dataset.g} hours`); };
+A.fastEnd = () => { const h = state.health, f = h.fast; if (!f) return; const hrs = (Date.now() - f.start)/36e5; h.fastLog = [{start:f.start, h: r1(hrs), goal:f.goal}, ...(h.fastLog || [])].slice(0, 60); h.fast = null; persist("health"); render(); toast(`Fast ended at ${fmt1(hrs)} hours`); };
+A.openSleep = () => { if (!premiumGate("Sleep tracking")) return; openSheet("sleep"); };
+document.addEventListener("submit", e => { const f = e.target.closest('[data-form="steps"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation(); if (!premiumGate("Step tracking")) return;
+  const v = Math.round(+$("#stepsIn").value); if (!(v >= 0 && v < 100000)) return; state.health.steps[todayKey()] = v; persist("health"); render(); toast("Steps saved"); }, true);
+setInterval(() => { if (state && state.health && state.health.fast && ui.view === "today" && !isTyping() && !sheet.open) render(); }, 60000);
+ICON.moon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+ICON.clock = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+SHEETS.fast = () => { const f = state.health.fast; return {title:"Fasting timer", body:`<div class="stack">${f && !f.end ? `<p>You're ${fmt1((Date.now()-f.start)/36e5)} hours into a ${f.goal}-hour fast.</p><button class="btn primary" data-act="fastEnd">End fast</button>` : `<p class="muted">Choose an eating window. The timer runs even when the app is closed.</p><div class="qgrid">${FASTS.map(([l,g]) => `<button class="qbtn" data-act="fastStart" data-g="${g}"><b>${l}</b><small>${g}-hour fast</small></button>`).join("")}</div>`}
+  ${(state.health.fastLog || []).length ? `<div><span class="eyebrow">Recent fasts</span><div class="list">${state.health.fastLog.slice(0,6).map(x => `<div class="li"><div class="main"><b>${fmt1(x.h)} h</b><small>${new Date(x.start).toLocaleDateString()} · goal ${x.goal} h</small></div>${x.h >= x.goal ? `<span class="pill low">Done</span>` : ""}</div>`).join("")}</div></div>` : ""}
+  <p class="note">Fasting isn't right for everyone. Skip it if you're pregnant, have diabetes on medication, or have a history of disordered eating, unless your doctor says it's OK.</p></div>`}; };
+A.fastQuick = () => { if (!premiumGate("Fasting timer")) return; openSheet("fast"); };
+const _fastStart = A.fastStart; A.fastStart = el => { _fastStart(el); if (sheet.open && sheet.view === "fast") closeSheet(); };
+
+/* ======================================================================
+   Eating out: restaurant menu scanner, chain restaurant menus from around the world,
+   and "why it's good for you" health notes on every meal and recipe.
+   ====================================================================== */
+const BENEFIT = [
+  ["salmon sardines cansalmon", "Omega-3 fats for heart and brain health"],
+  ["tuna tunapouch cod tilapia shrimp scallops", "Lean seafood protein, low in saturated fat"],
+  ["spinach kale collards greens romaine bokchoy", "Leafy greens: vitamin K, folate and iron"],
+  ["broccoli brussels cauliflower caulirice cabbage", "Cruciferous veggies: fiber and vitamin C"],
+  ["blueberries strawberries raspberries blackberries frozberries cherries", "Berries: antioxidants and vitamin C"],
+  ["blackbeans lentils chickpeas kidneybeans pinto blackeyed refried chickpeapasta", "Beans and lentils: plant protein and gut-friendly fiber"],
+  ["oats steelcut barley oatcup", "Oats and barley: beta-glucan fiber that helps lower cholesterol"],
+  ["yogurt kefir skyr gyogcup cottage", "Protein and calcium; yogurt and kefir add probiotics"],
+  ["egg eggwhite hbegg2 eggbites", "Eggs: complete protein and choline for brain health"],
+  ["sweetpotato carrots babycarrots butternut", "Beta-carotene (vitamin A) for eyes and immunity"],
+  ["banana potato avocado plantain", "Potassium, which helps keep blood pressure in check"],
+  ["almonds walnuts chia flax pepitas sunflower pistachios cashews nutpack", "Nuts and seeds: healthy fats, magnesium and fiber"],
+  ["oil olives", "Olive oil: heart-healthy monounsaturated fats"],
+  ["orange grapefruit clementine kiwi pepper mango pineapple", "Vitamin C for immunity and iron absorption"],
+  ["tofu tempeh edamame soymilk", "Soy: complete plant protein"],
+  ["quinoa brownrice farro", "Whole grains: steady energy and B vitamins"],
+  ["chicken chickthigh turkey groundchicken rotisserie turkeydeli", "Lean protein that protects muscle"],
+  ["beef beef95 sirloin bison lamb", "Iron, zinc and vitamin B12"],
+  ["milk skim wholemilk cheddar swiss mozz parmesan feta string", "Calcium and vitamin D for bones"],
+  ["mushrooms", "Mushrooms: B vitamins and selenium"],
+  ["tomato cherrytom marinara", "Tomatoes: lycopene, an antioxidant"],
+  ["beets", "Beets: natural nitrates that support blood flow"],
+  ["dates raisins", "Quick natural energy plus potassium"],
+  ["asparagus zucchini cucumber greenbeans peas corn mixedveg celery onion", "Vegetables: fiber and micronutrients for few calories"],
+  ["whey plantprotein rtdshake", "Fast protein for muscle recovery"],
+  ["apple pear peach grapes watermelon cantaloupe fruitcup", "Fruit: fiber, water and vitamins"]
+].map(([ids, text]) => [new Set(ids.split(" ")), text]);
+function benefitsOf(items){
+  const ids = items.map(i => Array.isArray(i) ? i[0] : i), out = [];
+  for (const [set, text] of BENEFIT) if (ids.some(id => set.has(id)) && out.length < 3) out.push(text);
+  const t = mealTotals(items.filter(i => Array.isArray(i) && FOOD[i[0]]));
+  const badges = [];
+  if (t.p >= 30) badges.push("High protein"); else if (t.p >= 20) badges.push("Good protein");
+  if (t.kcal && t.as <= 3) badges.push("Low added sugar");
+  if (t.kcal && (t.c*4)/t.kcal <= 0.15) badges.push("Low carb");
+  if (items.some(i => FOOD[Array.isArray(i) ? i[0] : i] && FOOD[Array.isArray(i) ? i[0] : i].cat === "produce")) badges.push("Has veggies or fruit");
+  return {out, badges};
+}
+function benefitHTML(items){ const b = benefitsOf(items); if (!b.out.length && !b.badges.length) return "";
+  return `<div class="benefits">${b.badges.map(x => `<span class="bpill">${x}</span>`).join("")}${b.out.length ? `<ul>${b.out.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div>`; }
+function mealCard(m, di, mi, logged){ return mealCard0(m, di, mi, logged).replace("</h3>", "</h3>" + benefitHTML(m.items)); }
+
+/* ---------- menu scanner ---------- */
+const dine = {res:null, busy:false, err:"", restaurant:"", chains:{}, chainQ:"", country:"United States", chain:null, chainBusy:false};
+SHEETS.menu = () => {
+  if (dine.busy) return {title:"Reading the menu…", body:`<div class="loading"><span class="spin"></span> Finding your best picks…</div>`};
+  const r = dine.res;
+  if (r) return {title: r.restaurant ? `Best picks at ${r.restaurant}` : "Your best picks", wide:true, body:`<div class="stack">
+    ${(r.best || []).map((it,i) => menuItemRow(it, i, "best")).join("") || `<p class="empty">No items found.</p>`}
+    ${(r.skip || []).length ? `<div><span class="eyebrow">Skip these today</span><ul class="small">${r.skip.map(s => `<li><b>${esc(s.name)}</b>: ${esc(s.why || "")}</li>`).join("")}</ul></div>` : ""}
+    ${r.tip ? `<p class="small"><b>Tip:</b> ${esc(r.tip)}</p>` : ""}${mealChips()}
+    <p class="note">Numbers come from published restaurant nutrition when known, otherwise estimates. Portions vary by location.</p>
+    <button class="btn" data-act="menuAgain">Scan another menu</button></div>`};
+  return {title:"Restaurant menu scanner", body:`<div class="stack"><p class="muted">Snap the menu (or type the restaurant) and we'll pick what fits your calories, protein, diet and allergies today.</p>
+    <label class="btn primary" style="position:relative">${ICON.camera} Photograph the menu<input type="file" accept="image/*" capture="environment" data-field="menuPhoto" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+    <form class="row" data-form="menuName"><input id="menuName" type="text" placeholder="Or type a restaurant, e.g. Chipotle, Nando's, Jollibee" style="flex:1;min-width:200px" value="${esc(dine.restaurant)}"><button class="btn">Find picks</button></form>
+    ${dine.err ? `<p class="small" style="color:var(--bad)">${esc(dine.err)}</p>` : ""}</div>`};
+};
+SHEETS.menu.onClose = () => { dine.res = null; dine.err = ""; };
+function menuItemRow(it, i, group){
+  return `<div class="meal"><div class="row"><h3 style="flex:1">${esc(it.name)}</h3><span class="num" style="font-weight:700">${fmt(it.kcal || 0)} kcal</span></div>
+    <div class="macroline num"><span><b>${fmt(it.protein||0)}</b> P</span><span><b>${fmt(it.carbs||0)}</b> C</span><span><b>${fmt(it.fat||0)}</b> F</span>${it.sodium ? `<span>${fmt(it.sodium)} mg sodium</span>` : ""}${it.est ? `<span class="srcpill">estimate</span>` : ""}</div>
+    ${it.why ? `<p class="small">${esc(it.why)}</p>` : ""}${it.swap ? `<p class="small muted">Make it better: ${esc(it.swap)}</p>` : ""}
+    <button class="btn sm" data-act="dineLog" data-g="${group}" data-i="${i}" style="align-self:flex-start">${ICON.plus} Log it</button></div>`;
+}
+function leftToday(){ const c = calc(state.profile), t = dayTotals(todayKey()); return {kcal: Math.max(0, c.target - t.kcal), protein: Math.max(0, c.protein - t.p)}; }
+async function runMenu(payload){
+  dine.busy = true; dine.err = ""; sheetRender();
+  try { dine.res = await api("food/menu", Object.assign({left: leftToday(), diet: (DIETS.find(d => d[0] === state.profile.diet) || ["",""])[1] + (state.profile.faith && state.profile.faith !== "none" ? `, ${FAITHS[state.profile.faith][0]}` : ""), avoid: [...blockedSet(state.profile)].map(x => EXCL_LABEL[x] || x)}, payload)); }
+  catch (e){ dine.err = e.message; }
+  dine.busy = false; sheetRender();
+}
+A.menuScan = () => { if (!premiumGate("Restaurant menu scanner")) return; dine.res = null; fs.meal = slotNow(); openSheet("menu"); };
+A.menuAgain = () => { dine.res = null; sheetRender(); };
+document.addEventListener("change", async e => { const el = e.target; if (el.dataset && el.dataset.field === "menuPhoto" && el.files[0]){ try { runMenu({image: await shrinkImage(el.files[0], 1400)}); } catch { toast("Couldn't read that photo."); } } });
+document.addEventListener("submit", e => { const f = e.target.closest('[data-form="menuName"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation(); const n = $("#menuName").value.trim(); if (!n) return; dine.restaurant = n; runMenu({restaurant:n}); }, true);
+A.dineLog = el => {
+  const src = el.dataset.g === "best" ? dine.res.best : el.dataset.g === "chain" ? dine.chain.items : [];
+  const it = src[+el.dataset.i]; if (!it) return;
+  const where = el.dataset.g === "chain" ? dine.chain.chain : (dine.res && dine.res.restaurant) || "Restaurant";
+  (state.food.log[ui.nutDate] ||= []).push({id:uid(), food:null, name:`${it.name} (${where})`, serv:it.portion || "1 serving", q:1, meal:fs.meal || slotNow(), kcal:+it.kcal||0, p:+it.protein||0, c:+it.carbs||0, f:+it.fat||0, s:+it.sugar||0, as:0, na:+it.sodium||0, src:"Restaurant"});
+  persist("food"); postStatsSoon(); toast(`Logged ${it.name}`); render();
+};
+
+/* ---------- chain restaurants from around the world ---------- */
+const CHAINS = {
+  "United States":["McDonald's","Chick-fil-A","Chipotle","Subway","Taco Bell","Wendy's","Burger King","Starbucks","Panera Bread","Panda Express","Domino's","Pizza Hut","Popeyes","KFC","Sonic","Arby's","Dunkin'","Jack in the Box","Five Guys","Raising Cane's","Wingstop","Jersey Mike's","Culver's","Whataburger","Zaxby's","In-N-Out Burger","Qdoba","Sweetgreen","Cava","Noodles & Company","Olive Garden","Applebee's","Chili's","Texas Roadhouse","Buffalo Wild Wings","Cracker Barrel","IHOP","Denny's","Waffle House","Red Lobster","Outback Steakhouse","P.F. Chang's","The Cheesecake Factory","Shake Shack","Firehouse Subs","Jimmy John's","Papa John's","Little Caesars","Moe's Southwest Grill","El Pollo Loco","Del Taco","Bojangles","Church's Texas Chicken","Hardee's","Carl's Jr.","Tropical Smoothie Cafe","Smoothie King","Jamba","Love's Travel Stops","Pilot Flying J","TA Petro","Buc-ee's","Wawa","Sheetz","QuikTrip","7-Eleven","Casey's","Costco Food Court","Walmart Deli"],
+  "Canada":["Tim Hortons","A&W Canada","Harvey's","Mary Brown's","Swiss Chalet","St-Hubert","Freshii","Mucho Burrito","Pizza Pizza"],
+  "Mexico & Latin America":["El Pollo Loco","Pollo Campero","Oxxo","Vips","Sanborns","Bembos","Giraffas"],
+  "United Kingdom & Ireland":["Greggs","Pret A Manger","Nando's","Wagamama","Leon","Itsu","Wasabi","Costa Coffee","Pizza Express","Harvester","Wetherspoon","Supermac's"],
+  "Europe":["Vapiano","Telepizza","100 Montaditos","Nordsee","Max Burgers","Hesburger","Quick","Paul","Le Pain Quotidien","Bagel Brothers"],
+  "Asia":["Jollibee","Mang Inasal","CoCo Ichibanya","Yoshinoya","Sukiya","MOS Burger","Lotteria","Din Tai Fung","Haidilao","Ajisen Ramen","Old Chang Kee","Chowking","Saravana Bhavan","Haldiram's","Wow! Momo","Goli Vada Pav"],
+  "Middle East & Africa":["Al Baik","Shawarma House","Kudu","Chicken Licken","Steers","Nando's South Africa","Galito's","Debonairs Pizza","Wimpy"],
+  "Australia & New Zealand":["Guzman y Gomez","Red Rooster","Oporto","Grill'd","Zambrero","Hungry Jack's","Boost Juice","Sushi Hub"]
+};
+function V_eatout(){
+  const regions = Object.keys(CHAINS), q = dine.chainQ.trim().toLowerCase();
+  const list = regions.flatMap(r => CHAINS[r].map(n => [n, r])).filter(([n]) => !q || n.toLowerCase().includes(q));
+  return `<div class="pagehead"><div><h1>Eat out</h1><p class="sub">Menus, calories and healthier picks from restaurants around the world</p></div><button class="btn primary" data-act="menuScan">${ICON.camera} Scan a menu</button></div>
+    ${dine.chain ? chainView() : `<section class="card stack"><div class="fsearch">${ICON.search}<input type="search" placeholder="Search any restaurant chain, anywhere" value="${esc(dine.chainQ)}" data-field="chainQ"></div>
+      <div class="row"><label class="f" style="width:240px">Country<select data-field="chainCountry">${["United States","Canada","Mexico","United Kingdom","Ireland","France","Germany","Spain","Italy","Netherlands","Sweden","Philippines","Japan","South Korea","China","Singapore","India","Saudi Arabia","United Arab Emirates","South Africa","Nigeria","Australia","New Zealand","Brazil","Peru"].map(c => `<option ${dine.country===c?"selected":""}>${c}</option>`).join("")}</select></label>
+      ${q && !list.some(([n]) => n.toLowerCase() === q) ? `<button class="btn sm" data-act="chainOpen" data-n="${esc(dine.chainQ)}">Look up "${esc(dine.chainQ)}"</button>` : ""}</div></section>
+      ${regions.map(r => { const items = CHAINS[r].filter(n => !q || n.toLowerCase().includes(q)); return items.length ? `<section class="card stack"><h2>${r}</h2><div class="chips">${items.map(n => `<button class="chip" data-act="chainOpen" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div></section>` : ""; }).join("")}
+      <p class="note">Menus come from each chain's published nutrition where available; items marked "estimate" are approximate. Chain names belong to their owners; Rep &amp; Ration isn't affiliated with them.</p>`}`;
+}
+function chainView(){
+  const c = dine.chain;
+  if (dine.chainBusy) return `<section class="card"><div class="loading"><span class="spin"></span> Loading the ${esc(c.chain || "")} menu…</div></section>`;
+  if (!c.items || !c.items.length) return `<section class="card stack"><p class="muted">We couldn't find a menu for that restaurant. Try the menu scanner instead.</p><button class="btn" data-act="chainBack">Back</button></section>`;
+  const left = leftToday(), sorted = c.items.map((it, i) => ({it, i, fit: Math.abs((+it.kcal||0) - Math.min(left.kcal, 800)) - (+it.protein||0)*6})).sort((a,b) => a.fit - b.fit);
+  return `<section class="card stack"><div class="row"><div style="flex:1"><span class="eyebrow">${esc(c.cuisine || "Restaurant")} · ${esc(c.country || dine.country)}</span><h2>${esc(c.chain)}</h2><p class="small muted">Sorted by best fit for your ${fmt(left.kcal)} kcal and ${fmt(left.protein)} g protein left today.</p></div><button class="btn sm" data-act="chainBack">All restaurants</button></div></section>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${sorted.map(({it, i}) => menuItemRow(it, i, "chain")).join("")}</div>`;
+}
+RENDER.eatout = () => V_eatout();
+VIEWS.splice(VIEWS.findIndex(v => v.id === "progress"), 0, {id:"eatout", label:"Eat out"});
+ICON.eatout = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 4-3 7h3v11"/></svg>';
+A.chainOpen = async el => {
+  if (!premiumGate("Restaurant menus")) return;
+  dine.chain = {chain: el.dataset.n, items:[]}; dine.chainBusy = true; render(); window.scrollTo(0, 0);
+  try { const j = await api("food/chain", {name: el.dataset.n, country: dine.country}); dine.chain = Object.assign({chain: el.dataset.n}, j); } catch (e){ toast(e.message); dine.chain = null; }
+  dine.chainBusy = false; render();
+};
+A.chainBack = () => { dine.chain = null; render(); };
+document.addEventListener("input", e => { const el = e.target; if (el.dataset && el.dataset.field === "chainQ"){ dine.chainQ = el.value; clearTimeout(dine.t); dine.t = setTimeout(() => { const pos = el.selectionStart; render(); const n = $('[data-field="chainQ"]'); if (n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch {} } }, 250); } });
+document.addEventListener("change", e => { const el = e.target; if (el.dataset && el.dataset.field === "chainCountry"){ dine.country = el.value; } });
+
+/* ======================================================================
+   "Cook with what I have" and SNAP/EBT-friendly meal plans.
+   ====================================================================== */
+const STAPLES = new Set(["oil","soysauce","salsa","marinara","butter","honey","maple","ketchup","mayo","coconutoil","vinaigrette","teriyaki","turmericlatte","cocoa"]);
+const pantry = {have: new Set(), text:"", busy:false, err:""};
+const PANTRY_PICK = ["egg","chicken","turkey","beef","salmon","tuna","shrimp","tofu","blackbeans","lentils","chickpeas","oats","brownrice","whiterice","pasta","bread","tortilla","potato","sweetpotato","quinoa","spinach","broccoli","pepper","onion","tomato","carrots","zucchini","greens","avocado","banana","apple","blueberries","yogurt","milk","cheddar","cottage","pb","almonds","whey"];
+function matchFoodId(name){
+  const n = name.toLowerCase().replace(/s\b/g, "").trim(); if (!n) return null;
+  let best = null, bs = 0;
+  for (const f of FOODS){ const fn = f.name.toLowerCase(); const s = fn.startsWith(n) ? 3 : fn.split(/[ ,]+/).some(w => w.replace(/s$/, "") === n) ? 2.5 : fn.includes(n) ? 1 : 0; if (s > bs){ bs = s; best = f.id; } }
+  return best;
+}
+function pantryMatches(){
+  const have = pantry.have, p = state.profile, b = blockedSet(p);
+  return TEMPLATES.filter(t => t.items.every(([id]) => FOOD[id] && foodOK(id, p, b))).map(t => {
+    const need = t.items.map(i => i[0]).filter(id => !STAPLES.has(id)), missing = need.filter(id => !have.has(id));
+    return {t, missing, score: need.length ? (need.length - missing.length)/need.length : 0};
+  }).filter(x => x.score >= 0.5).sort((a,b) => b.score - a.score || a.missing.length - b.missing.length).slice(0, 14);
+}
+SHEETS.pantry = () => {
+  const m = pantry.have.size ? pantryMatches() : [];
+  return {title:"Cook with what I have", wide:true, body:`<div class="stack">
+    <p class="muted">Tap what you have, type it, or snap your fridge. We'll find meals that fit your plan.</p>
+    <div class="row"><label class="btn sm" style="position:relative">${ICON.camera} Snap my fridge or pantry<input type="file" accept="image/*" capture="environment" data-field="pantryPhoto" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+      <form class="row" data-form="pantryText" style="flex:1"><input id="pantryText" type="text" placeholder="e.g. eggs, rice, frozen broccoli, chicken" style="flex:1;min-width:180px"><button class="btn sm">Add</button></form></div>
+    ${pantry.busy ? `<div class="loading"><span class="spin"></span> Looking at your photo…</div>` : pantry.err ? `<p class="small" style="color:var(--bad)">${esc(pantry.err)}</p>` : ""}
+    <div class="chips">${[...new Set([...PANTRY_PICK, ...pantry.have])].map(id => FOOD[id] ? `<button class="chip" data-act="pantryToggle" data-id="${id}" aria-pressed="${pantry.have.has(id)}">${esc(FOOD[id].name.split(",")[0])}</button>` : "").join("")}</div>
+    ${pantry.have.size ? `<div><span class="eyebrow">${m.length ? `${m.length} meals you can make` : "No full matches yet. Add a few more ingredients."}</span>
+      <div class="list">${m.map((x, i) => `<div class="li"><div class="main"><b>${esc(x.t.name)}</b><small>${x.missing.length ? `Missing: ${x.missing.map(id => FOOD[id].name.split(",")[0].toLowerCase()).join(", ")}` : "You have everything"} · ${fmt(mealTotals(x.t.items).kcal)} kcal base</small></div><span class="pill ${x.missing.length ? "neutral" : "low"}">${Math.round(x.score*100)}%</span><button class="btn sm" data-act="pantryCook" data-id="${x.t.id}">View</button></div>`).join("")}</div></div>` : ""}
+    <button class="btn sm ghost" data-act="pantryClear" style="align-self:flex-start">Clear</button></div>`};
+};
+A.pantryOpen = () => { if (!premiumGate("Cook with what I have")) return; openSheet("pantry"); };
+A.pantryToggle = el => { const id = el.dataset.id; pantry.have.has(id) ? pantry.have.delete(id) : pantry.have.add(id); sheetRender(); };
+A.pantryClear = () => { pantry.have.clear(); sheetRender(); };
+A.pantryCook = el => {
+  const t = TEMPLATES.find(x => x.id === el.dataset.id), c = calc(state.profile), share = (SLOTS.find(s => s[0] === t.slot) || [0, .3])[1];
+  const k = clamp(c.target*share/mealTotals(t.items).kcal, 0.6, 2.4), items = t.items.map(([id,q]) => [id, roundQ(q*k)]);
+  openSheet("pantryMeal", {t, items});
+};
+SHEETS.pantryMeal = d => { const tt = mealTotals(d.items); return {title: d.t.name, body:`<div class="stack">${srcBadge(d.t.src)}${benefitHTML(d.items)}
+  <ul>${d.items.map(([id,q]) => `<li>${esc(FOOD[id].name)} · ${esc(qtyText(q, FOOD[id].serv))}${pantry.have.has(id) || STAPLES.has(id) ? "" : ` <span class="srcpill">need</span>`}</li>`).join("")}</ul>${macroLine(tt)}
+  <ol class="steps">${d.t.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+  <div class="row"><button class="btn primary" data-act="pantryLog">Log it as ${slotLabel(d.t.slot).toLowerCase()}</button><button class="btn" data-act="pantryOpen">Back</button></div></div>`}; };
+A.pantryLog = () => { const d = sheet.data; (state.food.log[todayKey()] ||= []).push(...d.items.map(([id,q]) => entryFrom(FOOD[id], q, d.t.slot))); persist("food"); closeSheet(); render(); toast(`${d.t.name} logged`); };
+document.addEventListener("submit", e => { const f = e.target.closest('[data-form="pantryText"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  for (const part of $("#pantryText").value.split(/[,;\n]+/)){ const id = matchFoodId(part); if (id) pantry.have.add(id); } sheetRender(); }, true);
+document.addEventListener("change", async e => { const el = e.target; if (!(el.dataset && el.dataset.field === "pantryPhoto" && el.files[0])) return;
+  pantry.busy = true; pantry.err = ""; sheetRender();
+  try { const j = await api("food/pantry", {image: await shrinkImage(el.files[0], 1400)}); let n = 0; for (const name of j.items || []){ const id = matchFoodId(name); if (id && !pantry.have.has(id)){ pantry.have.add(id); n++; } } toast(n ? `Found ${n} ingredients` : "Couldn't spot ingredients we know. Tap them instead."); }
+  catch (x){ pantry.err = x.message; }
+  pantry.busy = false; sheetRender(); });
+
+/* ---------- SNAP / EBT ---------- */
+// Not SNAP-eligible: hot or restaurant food, alcohol, and supplements sold with a Supplement Facts label.
+TAGADD("snapno", "pizza cheeseburger fries burrito sub grilledsand nuggets caesar friedrice sushi latte smoothie hotdog eggbites bfsandwich chili frozenbowl beer wine whey plantprotein energydrink rotisserie");
+EXCL_LABEL.snapno = "Not SNAP-eligible";
+const _blockedSnap = blockedSet;
+blockedSet = p => { const b = _blockedSnap(p); if (p.snap) b.add("snapno"); return b; };
+function snapCard(){
+  const p = state.profile;
+  return `<section class="card stack"><h2>SNAP / EBT</h2><label class="check" style="border:0;padding:0"><input type="checkbox" data-act="snapToggle" ${p.snap ? "checked" : ""}><span style="text-decoration:none;color:var(--ink)">Build my menus from SNAP-eligible groceries</span></label>
+    <p class="small muted">Leaves out hot and restaurant foods, alcohol and supplements, and picks the lowest-cost meals. Many states double SNAP dollars on fruit and vegetables through Double Up Food Bucks; ask at your farmers market or grocery store.</p></section>`;
+}
+A.snapToggle = el => { if (!premiumGate("SNAP/EBT meal plans")) { el.checked = !el.checked; return; } const p = state.profile; p.snap = el.checked; if (p.snap && !p.budget) p.budget = 45*hhFactor(p); p.planSeed++; persist("profile"); render(); toast(p.snap ? "Menus now use SNAP-eligible groceries" : "SNAP mode off"); };
+const _profileExtrasSnap = profileExtras; profileExtras = () => _profileExtrasSnap().replace('<section class="card stack"><h2>Your day & training</h2>', snapCard() + '<section class="card stack"><h2>Your day & training</h2>');
+
+/* ======================================================================
+   Weekly AI coach review, daily habits on Today, sleep and progress photos on Progress,
+   and an offline indicator.
+   ====================================================================== */
+function weekStats(){
+  const p = state.profile, c = calc(p), days = [];
+  for (let i = 7; i >= 1; i--) days.push(dkey(addDays(new Date(), -i)));
+  const logged = days.filter(k => dayEntries(k).length), tot = logged.map(k => dayTotals(k));
+  const avg = f => tot.length ? Math.round(tot.reduce((a, t) => a + t[f], 0)/tot.length) : 0;
+  const sess = state.training.sessions.filter(s => days.includes(s.date) && s.items.some(it => it.sets.length));
+  const ws = state.training.weights.filter(w => w.date >= days[0]).sort((a,b) => a.date < b.date ? -1 : 1);
+  const h = state.health, sl = sleepAvg(7), stepsDays = days.map(k => (h.steps || {})[k]).filter(Boolean), waterDays = days.map(k => (h.water || {})[k]).filter(Boolean);
+  return {goal: p.goal, diet: p.diet || "standard", daysLogged: logged.length, calorieTarget: c.target, avgCalories: avg("kcal"), proteinTarget: c.protein, avgProtein: avg("p"),
+    avgCarbs: avg("c"), avgFat: avg("f"), avgSugar: avg("s"), workouts: sess.length, setsDone: sess.reduce((a, s) => a + s.items.reduce((b, it) => b + it.sets.length, 0), 0),
+    weightChange: ws.length > 1 ? r1(wDisp(ws.at(-1).kg - ws[0].kg)) : null, weightUnit: wUnit(), sleepAvgHours: sl ? r1(sl.avg) : null,
+    avgSteps: stepsDays.length ? Math.round(stepsDays.reduce((a,b) => a+b, 0)/stepsDays.length) : null, avgWaterGlasses: waterDays.length ? r1(waterDays.reduce((a,b) => a+b, 0)/waterDays.length) : null,
+    fasts: (h.fastLog || []).filter(f => f.start > Date.now() - 7*864e5).length, lifestyle: p.lifestyle || "regular"};
+}
+const weekKey = () => dkey(addDays(new Date(), -((new Date().getDay() + 6) % 7)));   // Monday of this week
+const weekly = {busy:false, err:""};
+function weeklyCard(){
+  const r = state.profile.weekly, fresh = r && r.wk === weekKey();
+  if (!isPremium()) return `<section class="card stack"><div class="row"><span class="qi">${ICON.spark || ICON.progress}</span><div style="flex:1"><h2>Your weekly coach review</h2><p class="small muted">Every week, AI reads your food, training, sleep and weight and tells you what went well and the one thing to change.</p></div></div><button class="btn sm" data-act="upgrade" data-f="Weekly AI review">${LOCK} Unlock with Premium</button></section>`;
+  if (!fresh) return `<section class="card stack weekly"><div class="row"><span class="qi">${ICON.spark || ICON.progress}</span><div style="flex:1"><h2>Your weekly coach review</h2><p class="small muted">A quick read on last week: wins, the one thing to focus on, and a tip.</p></div></div>
+    ${weekly.err ? `<p class="small" style="color:var(--bad)">${esc(weekly.err)}</p>` : ""}<button class="btn primary sm" data-act="weeklyRun" ${weekly.busy ? "disabled" : ""}>${weekly.busy ? `<span class="spin"></span> Reading your week…` : "Get my review"}</button></section>`;
+  const d = r.data;
+  return `<section class="card stack weekly"><div class="card-head" style="margin:0"><h2>Weekly review</h2><span class="small muted">Week of ${shortDate(r.wk)}</span></div>
+    <p><b>${esc(d.headline || "")}</b></p>
+    ${(d.wins || []).length ? `<ul class="small" style="margin:0;padding-left:18px">${d.wins.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
+    ${d.focus ? `<div class="daynote"><b>Focus this week:</b> ${esc(d.focus)}</div>` : ""}${d.tip ? `<p class="small muted">Tip: ${esc(d.tip)}</p>` : ""}
+    <div class="row"><button class="btn sm ghost" data-act="weeklyRun">Refresh</button></div></section>`;
+}
+A.weeklyRun = async () => {
+  if (!premiumGate("Weekly AI review")) return;
+  weekly.busy = true; weekly.err = ""; render();
+  try { const j = await api("ai/weekly", {stats: weekStats()}); state.profile.weekly = {wk: weekKey(), data: j}; persist("profile"); }
+  catch (e){ weekly.err = e.message; }
+  weekly.busy = false; render();
+};
+
+/* ---------- Today: habits and weekly review ---------- */
+const _todayW = RENDER.today;
+RENDER.today = () => {
+  return _todayW() + habitsCard() + weeklyCard();
+};
+
+/* ---------- Progress: sleep and photos ---------- */
+const photos = {list:null, err:"", busy:false, cmp:null};
+async function photosLoad(route = "photos/list", body = {}){ photos.busy = true; try { photos.list = (await api(route, body)).photos; photos.err = ""; } catch (e){ photos.err = e.message; if (photos.list === null) photos.list = []; } photos.busy = false; if (ui.view === "progress" && !isTyping()) render(); }
+function photosCard(){
+  if (!isPremium() && !(photos.list && photos.list.length)) return `<section class="card stack"><h2>Progress photos</h2><p class="small muted">Private before-and-after photos, side by side, so you can see changes the scale misses.</p><button class="btn sm" data-act="upgrade" data-f="Progress photos">${LOCK} Unlock with Premium</button></section>`;
+  if (photos.list === null && !photos.busy) photosLoad();
+  const L = photos.list || [], first = L[0], last = L.at(-1);
+  return `<section class="card stack"><div class="card-head" style="margin:0"><h2>Progress photos</h2><span class="small muted">Only you can see these</span></div>
+    ${L.length >= 2 ? `<div class="grid g-2 photocmp"><figure><img src="/api/photo/${first.id}" alt="First photo" loading="lazy"><figcaption>${shortDate(first.date)}${first.weight ? ` · ${fmt1(first.weight)} ${wUnit()}` : ""}</figcaption></figure><figure><img src="/api/photo/${last.id}" alt="Latest photo" loading="lazy"><figcaption>${shortDate(last.date)}${last.weight ? ` · ${fmt1(last.weight)} ${wUnit()}` : ""}</figcaption></figure></div>` : ""}
+    ${L.length ? `<div class="photostrip">${L.slice().reverse().map(p => `<div class="ph"><img src="/api/photo/${p.id}" alt="Photo from ${shortDate(p.date)}" loading="lazy"><small>${shortDate(p.date)} · ${p.pose}</small><button class="btn sm ghost" data-act="photoDel" data-id="${p.id}" aria-label="Delete photo">✕</button></div>`).join("")}</div>` : `<p class="small muted">No photos yet. Same spot, same light, once a week works best.</p>`}
+    ${photos.err ? `<p class="small" style="color:var(--bad)">${esc(photos.err)}</p>` : ""}
+    <div class="row"><select id="photoPose" aria-label="Pose"><option value="front">Front</option><option value="side">Side</option><option value="back">Back</option></select>
+      <label class="btn sm primary" style="position:relative">${photos.busy ? `<span class="spin"></span> Saving…` : `${ICON.camera} Add photo`}<input type="file" accept="image/*" data-field="progPhoto" style="position:absolute;inset:0;opacity:0;cursor:pointer" ${photos.busy ? "disabled" : ""}></label></div></section>`;
+}
+A.photoDel = el => { if (confirm("Delete this photo? This can't be undone.")) photosLoad("photos/delete", {id: el.dataset.id}); };
+document.addEventListener("change", async e => { const el = e.target; if (!(el.dataset && el.dataset.field === "progPhoto" && el.files[0])) return;
+  if (!premiumGate("Progress photos")) return;
+  photos.busy = true; render();
+  try { const w = state.training.weights.at(-1); await photosLoad("photos/upload", {image: await shrinkImage(el.files[0], 1200), date: todayKey(), pose: ($("#photoPose") || {}).value, weight: w ? r1(wDisp(w.kg)) : null}); toast("Photo saved"); }
+  catch (x){ photos.busy = false; toast(x.message || "Couldn't save that photo"); render(); } });
+const _progW = RENDER.progress;
+RENDER.progress = () => _progW() + `<section class="card stack"><div class="card-head" style="margin:0"><h2>Sleep</h2>${isPremium() ? "" : `<button class="btn sm" data-act="upgrade" data-f="Sleep tracking">${LOCK} Premium</button>`}</div>${isPremium() ? sleepCard(false) : `<p class="small muted">Log your sleep and see how it lines up with your weight, hunger and training.</p>`}</section>` + photosCard();
+
+/* ---------- offline indicator ---------- */
+function offlineBadge(){
+  let el = document.getElementById("offlineBadge");
+  const n = window.RR_OFFLINE ? RR_OFFLINE.pending() : 0, off = !navigator.onLine;
+  if (!off && !n){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement("div"); el.id = "offlineBadge"; el.className = "offline"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = off ? `Offline · ${n ? `${n} change${n === 1 ? "" : "s"} will sync when you're back online` : "you can keep logging"}` : `Syncing ${n} change${n === 1 ? "" : "s"}…`;
+}
+window.addEventListener("rr-queue", offlineBadge); window.addEventListener("online", offlineBadge); window.addEventListener("offline", offlineBadge);
+setTimeout(offlineBadge, 1500);
+
+/* ======================================================================
+   Free vs Premium. Free: log food by search, log workouts (no demos or videos), buddies,
+   progress and the weekly meal plan (no grocery list). Everything else stays visible but
+   opens an upgrade prompt. The server enforces the same rules.
+   ====================================================================== */
+function isPremium(){ if (!PUB) return true; const u = me(); return !!(u && u.sub && u.sub.active); }
+const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lockic"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+function premiumGate(feature){ if (isPremium()) return true; openSheet("upgrade", {feature}); return false; }
+SHEETS.upgrade = d => { const u = me() || {sub:{}}, trial = u.sub && u.sub.canTrial;
+  return {title:"Premium feature", body:`<div class="stack upsheet"><div class="row" style="gap:12px"><span class="qi">${LOCK}</span><div style="flex:1"><b>${esc(d.feature || "This feature")} isn't available in free mode.</b><p class="small muted">Upgrade to Premium to unlock it, along with everything else in Rep &amp; Ration.</p></div></div>
+    <ul class="small" style="margin:0;padding-left:18px;line-height:1.8"><li>Barcode, photo and "say it" food logging</li><li>Restaurant menu scanner and chain menus</li><li>Grocery lists, budget and faith-based menus</li><li>Adaptive calorie targets and weekly AI review</li><li>1,700+ exercise demos and coach videos</li><li>DOT physical prep, fasting timer, progress photos and reminders</li></ul>
+    <div class="grid g-2"><button class="btn primary" data-act="pickPlan" data-p="individual_year">${trial ? "Try 7 days free · then $120/yr" : "Annual · $120/yr"}</button><button class="btn" data-act="pickPlan" data-p="individual_month">${trial ? "Try 7 days free · then $15.99/mo" : "Monthly · $15.99/mo"}</button></div>
+    <button class="btn sm ghost" data-act="openPlans" style="align-self:center">See Family and Coach plans</button>
+    ${trial ? `<p class="small muted" style="text-align:center">Nothing is charged for 7 days. Cancel any time before then.</p>` : ""}</div>`}; };
+const lockedView = (title, feature, blurb) => `<div class="pagehead"><div><h1>${title}</h1><p class="sub">Premium</p></div></div>
+  <section class="card stack lockcard"><span class="qi">${LOCK}</span><h2>${esc(feature)} is a Premium feature</h2><p class="muted">${blurb}</p><div class="row"><button class="btn primary" data-act="upgrade" data-f="${esc(feature)}">Upgrade to Premium</button></div></section>`;
+A.upgrade = el => openSheet("upgrade", {feature: el.dataset.f || "This feature"});
+
+// actions that need Premium
+const PREMIUM_ACTS = {qScan:"Barcode scanning", qPhoto:"Photo logging", qSay:"Say-it logging", aiMic:"Voice logging", qRecipe:"Recipes", editRecipe:"Recipes", logRecipeBtn:"Recipes", rcAdd:"Recipes",
+  water:"Water tracking", qWater:"Water tracking", copyList:"Grocery lists", shareList:"Grocery lists", openReminders:"Reminders", remTest:"Reminders",
+  checkinYes:"Adaptive targets", adaptiveToggle:"Adaptive targets", budgetOff:"Budget menus", vvOpen:"Coach videos", vvFollow:"Coach videos"};
+for (const [k, label] of Object.entries(PREMIUM_ACTS)) if (A[k]){ const f = A[k]; A[k] = (el, e) => { if (!premiumGate(label)) { if (el && el.type === "checkbox") el.checked = !el.checked; return; } return f(el, e); }; }
+// recipes tab in food search
+const _fsTab = A.fsTab; A.fsTab = el => { if (el.dataset.t === "recipes" && !premiumGate("Recipes")) return; _fsTab(el); };
+// tabs and views
+const _woTab = A.woTab; A.woTab = el => { if (el.dataset.tab === "videos" && !premiumGate("Coach videos")) return; _woTab(el); };
+const _planTab = A.planTab; A.planTab = el => { if (el.dataset.tab === "grocery" && !premiumGate("Grocery lists & shopping")) return; _planTab(el); };
+for (const [view, title, feature, blurb] of [["coach","Coach","Coach mode","Connect with a personal trainer or nutrition coach, share your logs and message each other. Trainers on a Coach plan get a client dashboard and can post demo videos."],
+  ["devices","Devices","Devices & health alerts","Track heart rate, sleep, steps and blood pressure, with one clear tip when something needs attention."],
+  ["dot","DOT prep","DOT physical prep","Get ready for your DOT medical exam: blood pressure log with certificate-length estimates, sleep and sleep-apnea screening, blood sugar, and a readiness checklist."]]){
+  const f = RENDER[view]; RENDER[view] = () => isPremium() ? f() : lockedView(title, feature, blurb);
+}
+for (const [view, tab, title, feature, blurb] of [["workouts","videos","Train","Coach videos","Short exercise demos from Rep & Ration coaches, checked for safety before they're published."],["plan","grocery","Weekly plan","Grocery lists & shopping","Your week's grocery list, prep steps, budget and one-tap send to Amazon Fresh."]]){
+  const f = RENDER[view], key = view === "workouts" ? "woTab" : "planTab";
+  RENDER[view] = () => (!isPremium() && ui[key] === tab) ? (ui[key] = view === "workouts" ? "schedule" : "meals", f()) : f();
+}
+// budget form
+document.addEventListener("submit", e => { if (e.target.closest('[data-form="budget"]') && !isPremium()){ e.preventDefault(); e.stopImmediatePropagation(); premiumGate("Budget menus"); } }, true);
+// demos are Premium: free members see the steps but no images or videos
+const _exThumb = exThumb; exThumb = e => isPremium() ? _exThumb(e) : `<span class="exthumb ph sm">${ICON[e.pattern === "cardio" ? "progress" : "workouts"]}<small>${esc(PATTERN[e.pattern])}</small></span>`;
+const _demoBlock = demoBlock; demoBlock = e => isPremium() ? _demoBlock(e) : ((e.img || e.wimg || e.vid) ? `<button class="btn" data-act="upgrade" data-f="Exercise demos & videos">${LOCK} Unlock the demo with Premium</button>` : "");
+// profile settings that belong to Premium features
+const _profileExtras = profileExtras;
+profileExtras = () => {
+  if (isPremium()) return _profileExtras();
+  const html = _profileExtras();
+  const keep = /<section class="card stack"><h2>Your data<\/h2>[\s\S]*?<\/section>/.exec(html);
+  return `<section class="card stack lockcard"><div class="row" style="gap:10px"><span class="qi">${LOCK}</span><div style="flex:1"><h2>Premium settings</h2><p class="small muted">Faith and cultural menus, budget and household plans, trucker and shift-worker modes, and reminders come with Premium.</p></div></div><button class="btn primary sm" data-act="upgrade" data-f="Premium settings" style="align-self:flex-start">Upgrade to Premium</button></section>${keep ? keep[0] : ""}`;
+};
+// little lock badges on Premium buttons for free members
+function markLocks(){
+  if (isPremium()) return;
+  document.querySelectorAll("[data-act]").forEach(el => { const a = el.dataset.act;
+    const locked = PREMIUM_ACTS[a] || (a === "woTab" && el.dataset.tab === "videos") || (a === "planTab" && el.dataset.tab === "grocery") || (a === "fsTab" && el.dataset.t === "recipes") || (a === "nav" && ["coach","devices","dot"].includes(el.dataset.view)) || PREMIUM_EXTRA.includes(a);
+    if (locked && !el.querySelector(".lockic")) el.insertAdjacentHTML("beforeend", LOCK); });
+}
+const PREMIUM_EXTRA = ["menuScan","pantryOpen","openSleep","fastQuick","chainOpen","fastStart","weeklyRun","snapToggle"];
+new MutationObserver(() => { clearTimeout(markLocks.t); markLocks.t = setTimeout(markLocks, 30); }).observe(document.documentElement, {childList:true, subtree:true});
+// a gentle banner for free members on Today
+const _today = RENDER.today; RENDER.today = () => {
+  const html = _today(); if (isPremium() || !PUB) return html;
+  return `<div class="banner"><p><b>You're on the free plan.</b> Log food, workouts and progress as long as you like. Premium adds barcode and photo logging, grocery lists, adaptive targets, demos and more.</p><button class="btn primary" data-act="upgrade" data-f="Premium">See Premium</button></div>` + html;
+};
+
 /* ---------------- boot ---------------- */
 (async function boot(){
   try { await Promise.race([RR_EXLOAD, new Promise(r => setTimeout(r, 6000))]); } catch {}
@@ -4200,27 +4795,31 @@ function roadCard(){
     family_month:{n:"Family", price:"$24.99", per:"month", note:"You + 4 people"},
     family_year:{n:"Family", price:"$199", per:"year", note:"You + 4 people · save $100.88 a year"},
     coach_month:{n:"Coach", price:"$29.99", per:"month", note:"Up to 25 clients"},
-    coach_unlimited_month:{n:"Coach Unlimited", price:"$49.99", per:"month", note:"Unlimited clients"}
+    coach_unlimited_month:{n:"Coach Unlimited", price:"$49.99", per:"month", note:"Unlimited clients"},
+    fleet_month:{n:"Fleet & company", price:"$10", per:"seat/month", note:"20-seat minimum · $8/seat for 51+"}
   };
-  let annual = true, plan = "individual_year", gmode = "signup";
+  let annual = true, plan = "individual_year", gmode = "signup", freeSignup = true;
   try { const q = new URLSearchParams(location.search).get("plan"); if (q && P[q]) plan = q; } catch {}
   const ic = n => `<span class="qi">${(typeof ICON !== "undefined" && ICON[n]) || ""}</span>`;
   const form = mode => {
     const pl = P[plan];
-    if (mode === "signup") return `<form class="card stack gform" data-gate="signup"><h2>Start your 7-day free trial</h2>
-      <div class="row" style="justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:10px 12px"><span><b>${pl.n}</b><br><small class="muted">${pl.note}</small></span><span><b>${pl.price}</b><small class="muted">/${pl.per}</small></span></div>
-      <p class="small muted">Next you'll add a card with Stripe. Nothing is charged today. After 7 days your card is billed ${pl.price}, then every ${pl.per}. Cancel any time before the trial ends and you won't be charged.</p>
+    if (mode === "signup") return `<form class="card stack gform" data-gate="signup"><h2>${freeSignup ? "Create your free account" : "Start your 7-day Premium trial"}</h2>
+      ${freeSignup ? `<p class="small muted">Free forever: log food, log workouts, follow your meal plan, track progress and join buddies. No card needed. Upgrade to Premium any time.</p>` : `<div class="row" style="justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:10px 12px"><span><b>${pl.n}</b><br><small class="muted">${pl.note}</small></span><span><b>${pl.price}</b><small class="muted">/${pl.per}</small></span></div>
+      <p class="small muted">Next you'll add a card with Stripe. Nothing is charged today. After 7 days your card is billed ${pl.price}, then every ${pl.per}. Cancel any time before the trial ends and you won't be charged.</p>`}
+      ${plan === "fleet_month" && !freeSignup ? `<label class="f">Company name<input id="gCo" type="text" autocomplete="organization" maxlength="80" required></label>
+      <label class="f">Number of seats (20 minimum)<input id="gSeats" type="number" min="20" max="5000" value="20" required></label><p class="small muted" id="gSeatTotal">20 seats × $10 = $200/month. Your own access is included.</p>` : ""}
       <label class="f">First name<input id="gName" type="text" autocomplete="given-name" maxlength="40"></label>
       <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
       <label class="f">Password (8+ characters)<input id="gPw" type="password" autocomplete="new-password" minlength="8" required></label>
       <label class="check" style="border:0"><input id="gAgree" type="checkbox" required><span style="text-decoration:none;color:var(--ink)">I agree to the <a href="/terms.html" target="_blank">Terms</a> and <a href="/privacy.html" target="_blank">Privacy Policy</a>, and understand the app gives general fitness guidance, not medical advice.</span></label>
+      ${freeSignup ? `<label class="f">Company or fleet code <span class="muted">(optional)</span><input id="gCode" type="text" maxlength="12" style="text-transform:uppercase" placeholder="If your employer covers Premium"></label>` : ""}
       <div class="gerr" id="gErr"></div><button class="btn primary">Create account</button>
-      <p class="small muted">Already have an account? <a href="#" data-gmode="login">Log in</a> · Added to a family plan? Sign up with the email you were added with. No card needed.</p></form>`;
+      <p class="small muted">Already have an account? <a href="#" data-gmode="login">Log in</a> · Added to a family plan? Sign up with the email you were added with.</p></form>`;
     if (mode === "login") return `<form class="card stack gform" data-gate="login"><h2>Log in</h2>
       <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
       <label class="f">Password<input id="gPw" type="password" autocomplete="current-password" required></label>
       <div class="gerr" id="gErr"></div><button class="btn primary">Log in</button>
-      <p class="small muted"><a href="#" data-gmode="forgot">Forgot password?</a> · New here? <a href="#" data-gmode="signup">Start a free trial</a></p></form>`;
+      <p class="small muted"><a href="#" data-gmode="forgot">Forgot password?</a> · New here? <a href="#" data-gfree>Create a free account</a></p></form>`;
     if (mode === "forgot") return `<form class="card stack gform" data-gate="forgot"><h2>Reset your password</h2><label class="f">Email<input id="gEmail" type="email" required></label><div class="gerr" id="gErr"></div><button class="btn primary">Email me a reset link</button><p class="small muted"><a href="#" data-gmode="login">Back to log in</a></p></form>`;
     return `<form class="card stack gform" data-gate="reset"><h2>Choose a new password</h2><label class="f">New password (8+ characters)<input id="gPw" type="password" minlength="8" required></label><div class="gerr" id="gErr"></div><button class="btn primary">Save password</button></form>`;
   };
@@ -4235,8 +4834,11 @@ function roadCard(){
       <div class="gplans">${card(ind, "Just you", true, ["Adaptive calorie & macro targets","Barcode, photo & voice food logging","Meal plans for every diet & faith","1,700+ exercises with demos","Buddies, reminders, progress"])}
       ${card(fam, "Family", false, ["Everything in Rep & Ration","You plus 4 people, each with their own account","Meal prep & groceries scaled for the household","One bill"])}
       ${card("coach_month", "Coach", false, ["Your own full membership","Client dashboard: meals, macros, workouts, weight","Message clients in the app","Clients keep their own membership"], "coach_unlimited_month")}</div>
+      <div class="card gplan gfleet"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:12px"><div style="flex:1;min-width:240px"><h3>Fleets & companies</h3><p class="small muted">Give your drivers or employees full Premium: meal plans, logging, workouts, DOT physical prep, sleep and fasting. Each person has a private account; you see who joined and who's active, never their health data. Coach tools not included.</p></div>
+        <div style="text-align:right"><span class="big" style="font-size:2rem">$10</span><span class="muted">/seat/month</span><p class="small muted">20-seat minimum · <b>$8/seat</b> for 51+</p><button class="btn" data-gplan="fleet_month">${pick ? "Choose" : "Set up a fleet"}</button></div></div></div>
       <p class="small muted" style="text-align:center;margin-top:10px">7 days free on any plan · card required · cancel any time before day 8 and you pay nothing</p>`;
   };
+  const freeCard = () => `<div class="card row" style="margin-top:20px;justify-content:space-between"><div style="flex:1;min-width:220px"><h3>Free</h3><p class="small muted">Log food by search, log workouts, follow your meal plan, track progress and join buddies. No card, no time limit.</p></div><div class="row"><span class="big" style="font-size:2rem">$0</span><button class="btn" data-gfree>Start free</button></div></div>`;
   function landing(){
     const feats = [["search","Log food your way","Search millions of foods from USDA and Open Food Facts, scan a barcode, snap a photo or just say what you ate."],
       ["progress","Targets that adapt","Every week we compare what you ate with your weight trend, learn your real burn and adjust your calories, like having a coach do the math."],
@@ -4247,11 +4849,11 @@ function roadCard(){
       ["coach","Coach mode","Trainers see clients' meals, macros, workouts and weight in one dashboard and message them in the app."],
       ["buddies","Family & buddies","One family plan for the whole house, plus groups to cheer on friends and co-workers."],
       ["bell","Reminders & app install","Add it to your home screen like an app, with reminders for meals, workouts and weigh-ins."]];
-    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost ghelp" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
+    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost ghelp" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gfree>Start free</button></div></div>
       <div class="ghero"><div><span class="eyebrow">Calorie counter · meal planner · workout app</span><h1>Train it. Eat it. <span>Track both.</span></h1>
         <p class="lead">One app that plans your meals and workouts around your goal, learns your real metabolism every week, and fits your budget, your faith and your schedule.</p>
-        <div class="gcta"><button class="btn primary" data-gscroll>Start your 7-day free trial</button><button class="btn" data-gmode="login">Log in</button></div>
-        <div class="gpoints"><span>$0 today</span><span>From $10/month billed yearly</span><span>Cancel any time</span></div></div>
+        <div class="gcta"><button class="btn primary" data-gfree>Start free</button><button class="btn" data-gscroll>Try Premium free for 7 days</button></div>
+        <div class="gpoints"><span>Free plan, no card</span><span>Premium from $10/month billed yearly</span><span>Cancel any time</span></div></div>
         <div class="gphone"><span class="eyebrow">Today</span>
           <div class="tile">${ic("nutrition")}<div><b>1,840 kcal target</b><small>Adapted from your last 3 weeks</small></div></div>
           <div class="tile">${ic("scan")}<div><b>Scan, snap or say it</b><small>"2 eggs, toast and coffee"</small></div></div>
@@ -4260,7 +4862,7 @@ function roadCard(){
       <div class="gsec"><h2>Everything in one membership</h2><p>No separate calorie counter, workout app and meal planner. It's all here, and it all works together.</p>
         <div class="gfeat">${feats.map(f => `<div class="card">${ic(f[0])}<h3>${f[1]}</h3><p class="small muted">${f[2]}</p></div>`).join("")}</div>
         <div class="gwho">${["Weight loss","Muscle gain","Keto & low-carb","Vegan & vegetarian","Food allergies","Halal","Kosher","Daniel Fast","Ramadan","Lent","Truckers","Night shift","Families","Personal trainers","Busy parents","On a budget"].map(x => `<span>${x}</span>`).join("")}</div></div>
-      <div class="gsec" id="gPlans"><h2>Simple pricing</h2><p>Start free for 7 days on any plan.</p>${plansHTML(false)}</div>
+      <div class="gsec" id="gPlans"><h2>Simple pricing</h2><p>Use the free plan as long as you like. Premium plans start with 7 days free.</p>${freeCard()}${plansHTML(false)}</div>
       <div id="gForm">${form(gmode)}</div>${foot}`;
   }
   function show(view, u){
@@ -4273,14 +4875,17 @@ function roadCard(){
       <p class="small muted" style="text-align:center">Payments are handled securely by Stripe. Added to a family plan? Make sure you signed up with the email the plan owner added.</p>${foot}`;
   }
   const err = m => { const e = $g("#gErr"); if (e) e.textContent = m; };
-  async function checkout(){ try { const j = await RR_API("billing/checkout", {plan}); location.href = j.url; } catch (e){ err(e.message); } }
+  let fleetInfo = {};
+  async function checkout(){ try { const j = await RR_API("billing/checkout", Object.assign({plan}, plan === "fleet_month" ? fleetInfo : {})); location.href = j.url; } catch (e){ err(e.message); } }
+  document.addEventListener("input", e => { if (e.target.id === "gSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gSeatTotal"); if (t) t.textContent = n < 20 ? "Fleet plans start at 20 seats." : `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; } });
   let mode = "landing";
   document.addEventListener("click", async e => {
     if (!e.target.closest("#gate")) return;
     const m = e.target.closest("[data-gmode]"); if (m){ e.preventDefault(); gmode = m.dataset.gmode; const f = $g("#gForm"); if (f){ f.innerHTML = form(gmode); f.scrollIntoView({behavior:"smooth", block:"center"}); } else show("landing"); return; }
+    if (e.target.closest("[data-gfree]")){ freeSignup = true; gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); return; }
     if (e.target.closest("[data-gscroll]")){ const t = $g("#gPlans"); if (t) t.scrollIntoView({behavior:"smooth"}); return; }
-    const a = e.target.closest("[data-gannual]"); if (a){ annual = a.dataset.gannual === "1"; plan = annual ? plan.replace("_month", "_year").replace("coach_year", "coach_month").replace("coach_unlimited_year", "coach_unlimited_month") : plan.replace("_year", "_month"); if (mode === "paywall") show("paywall", window.RR_USER); else { const y = scrollY; show("landing"); scrollTo(0, y); } return; }
-    const p = e.target.closest("[data-gplan]"); if (p){ plan = p.dataset.gplan; if (mode === "paywall"){ p.disabled = true; return checkout(); } gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { const n = $g("#gName"); if (n) n.focus({preventScroll:true}); }, 400); return; }
+    const a = e.target.closest("[data-gannual]"); if (a){ annual = a.dataset.gannual === "1"; plan = annual ? plan.replace("_month", "_year").replace("coach_year", "coach_month").replace("coach_unlimited_year", "coach_unlimited_month").replace("fleet_year", "fleet_month") : plan.replace("_year", "_month"); if (mode === "paywall") show("paywall", window.RR_USER); else { const y = scrollY; show("landing"); scrollTo(0, y); } return; }
+    const p = e.target.closest("[data-gplan]"); if (p){ plan = p.dataset.gplan; freeSignup = false; if (mode === "paywall"){ p.disabled = true; return checkout(); } gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { const n = $g("#gName"); if (n) n.focus({preventScroll:true}); }, 400); return; }
     if (e.target.closest("[data-glogout]")) { await RR_API("auth/logout", {}).catch(() => {}); location.href = "/"; }
   });
   document.addEventListener("submit", async e => {
@@ -4288,7 +4893,11 @@ function roadCard(){
     const t = f.dataset.gate, v = id => ($g(id) || {}).value || "";
     const btn = f.querySelector("button"); btn.disabled = true; err("");
     try {
-      if (t === "signup"){ const j = await RR_API("auth/signup", {name: v("#gName"), email: v("#gEmail"), password: v("#gPw")}); if (j.user.sub.billing && !j.user.sub.active) return checkout(); location.href = "/"; }
+      if (t === "signup"){
+        if (plan === "fleet_month" && !freeSignup){ fleetInfo = {company: v("#gCo").trim(), seats: Math.round(+v("#gSeats"))}; if (fleetInfo.company.length < 2) throw new Error("Enter your company name."); if (!(fleetInfo.seats >= 20)) throw new Error("Fleet plans start at 20 seats."); }
+        const j = await RR_API("auth/signup", {name: v("#gName"), email: v("#gEmail"), password: v("#gPw")});
+        if (freeSignup && v("#gCode").trim()){ try { await RR_API("fleet/join", {code: v("#gCode")}); } catch (x){ alert(x.message + " You can enter the code later under Profile → Account."); } }
+        if (!freeSignup && j.user.sub.billing && !j.user.sub.active) return checkout(); location.href = "/"; }
       else if (t === "login"){ await RR_API("auth/login", {email: v("#gEmail"), password: v("#gPw")}); location.href = "/"; }
       else if (t === "forgot"){ await RR_API("auth/reset-request", {email: v("#gEmail")}); err("If that email has an account, a reset link is on its way."); }
       else if (t === "reset"){ await RR_API("auth/reset", {token: new URLSearchParams(location.search).get("reset"), password: v("#gPw")}); location.href = "/?reset=done"; }
@@ -4300,7 +4909,6 @@ function roadCard(){
     const qs = new URLSearchParams(location.search);
     if (qs.get("reset") && qs.get("reset") !== "done") return show("reset");
     if (!u){ mode = "landing"; return show("landing"); }
-    if (!u.sub.active){ mode = "paywall"; return show("paywall", u); }
     if (qs.get("checkout") === "success") setTimeout(() => { try { toast("You're in. Your free trial has started."); } catch {} }, 800);
     if (qs.has("checkout") || qs.has("reset") || qs.has("plan")) history.replaceState(null, "", "/" + location.hash);
   });

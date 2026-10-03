@@ -4,15 +4,20 @@ import Stripe from "stripe";
 export const ACTIVE = ["trialing", "active", "past_due"];
 
 /* ---------- plans ---------- */
-export type PlanKey = "individual_month" | "individual_year" | "family_month" | "family_year" | "coach_month" | "coach_unlimited_month";
+export type PlanKey = "individual_month" | "individual_year" | "family_month" | "family_year" | "coach_month" | "coach_unlimited_month" | "fleet_month";
 export const PLANS: Record<PlanKey, { label: string; product: string; amount: number; interval: "month" | "year"; seats: number; clients: number }> = {
   individual_month: { label: "Monthly", product: "Rep & Ration", amount: 1599, interval: "month", seats: 1, clients: 0 },
   individual_year: { label: "Annual", product: "Rep & Ration", amount: 12000, interval: "year", seats: 1, clients: 0 },
   family_month: { label: "Family monthly", product: "Rep & Ration Family", amount: 2499, interval: "month", seats: 5, clients: 0 },
   family_year: { label: "Family annual", product: "Rep & Ration Family", amount: 19900, interval: "year", seats: 5, clients: 0 },
   coach_month: { label: "Coach", product: "Rep & Ration Coach", amount: 2999, interval: "month", seats: 1, clients: 25 },
-  coach_unlimited_month: { label: "Coach Unlimited", product: "Rep & Ration Coach Unlimited", amount: 4999, interval: "month", seats: 1, clients: 100000 }
+  coach_unlimited_month: { label: "Coach Unlimited", product: "Rep & Ration Coach Unlimited", amount: 4999, interval: "month", seats: 1, clients: 100000 },
+  // priced per driver seat; the subscription quantity is the number of seats
+  fleet_month: { label: "Fleet seat", product: "Rep & Ration Fleet", amount: 1000, interval: "month", seats: 1, clients: 0 }
 };
+// Fleet pricing (volume tiers): 20 seats minimum; 20–50 seats are $10 each, 51+ seats are $8 each.
+export const FLEET_MIN = 20, FLEET_MAX = 5000;
+export const fleetSeatPrice = (n: number) => (n > 50 ? 800 : 1000);
 export const isPlan = (p: unknown): p is PlanKey => typeof p === "string" && p in PLANS;
 export const money = (c: number) => "$" + (c / 100).toFixed(2);
 const LOOKUP = (p: PlanKey) => `rr_${p}_v2`;
@@ -39,7 +44,9 @@ export async function priceFor(s: Stripe, db: any, plan: PlanKey): Promise<strin
       productId = (await s.products.create({ name: P.product, metadata: { app: "repandration" } })).id;
       await db.sql`INSERT INTO kv (k, v) VALUES (${prodKey}, ${JSON.stringify({ id: productId })}::jsonb) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v`;
     }
-    id = (await s.prices.create({ product: productId, currency: "usd", unit_amount: P.amount, recurring: { interval: P.interval }, lookup_key: LOOKUP(plan), nickname: P.label, metadata: { plan } })).id;
+    id = plan === "fleet_month"
+      ? (await s.prices.create({ product: productId, currency: "usd", billing_scheme: "tiered", tiers_mode: "volume", tiers: [{ up_to: 50, unit_amount: 1000 }, { up_to: "inf", unit_amount: 800 }], recurring: { interval: P.interval }, lookup_key: LOOKUP(plan), nickname: P.label, metadata: { plan } })).id
+      : (await s.prices.create({ product: productId, currency: "usd", unit_amount: P.amount, recurring: { interval: P.interval }, lookup_key: LOOKUP(plan), nickname: P.label, metadata: { plan } })).id;
   }
   await db.sql`INSERT INTO kv (k, v) VALUES (${kvKey}, ${JSON.stringify({ id })}::jsonb) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v`;
   return id;

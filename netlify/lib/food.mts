@@ -198,3 +198,58 @@ export async function aiMeal(input: { image?: string; text?: string }): Promise<
   });
   return { items, note: String(parsed.note || "").slice(0, 200) };
 }
+
+/* ---------- restaurant menus: scan a menu, or look up a chain anywhere in the world ---------- */
+async function claudeJSON(system: string, content: any[], maxTokens = 1800): Promise<any> {
+  const key = Netlify.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw Object.assign(new Error("AI features aren't switched on yet."), { status: 503 });
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json", ...(Netlify.env.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": Netlify.env.get("ANTHROPIC_WORKSPACE_ID") as string } : {}) },
+    body: JSON.stringify({ model: Netlify.env.get("AI_MODEL") || "claude-haiku-4-5-20251001", max_tokens: maxTokens, system, messages: [{ role: "user", content }] }),
+    signal: timed(45000)
+  });
+  const j: any = await res.json().catch(() => ({}));
+  if (!res.ok) { console.error("anthropic", res.status, JSON.stringify(j).slice(0, 300)); throw Object.assign(new Error("The AI is busy right now. Try again in a minute."), { status: 502 }); }
+  const txt = (j.content || []).map((c: any) => c.text || "").join("");
+  const m = txt.match(/\{[\s\S]*\}/);
+  try { return JSON.parse(m ? m[0] : "{}"); } catch { return {}; }
+}
+const ITEM_SHAPE = `{"name":"Grilled Chicken Sandwich","portion":"1 sandwich","kcal":390,"protein":28,"carbs":44,"fat":11,"sugar":9,"sodium":1120,"why":"one short sentence on why it fits or the health benefit","swap":"optional: one easy change that makes it healthier"}`;
+export async function menuScan(input: { image?: string; restaurant?: string; left?: any; diet?: string; avoid?: string[] }) {
+  const left = input.left || {};
+  const ctx = `The person has about ${Math.round(left.kcal || 700)} kcal and ${Math.round(left.protein || 35)} g protein left today. Diet: ${input.diet || "no restrictions"}. Avoid: ${(input.avoid || []).join(", ") || "nothing"}.`;
+  const system = `You are a sports dietitian helping someone order at a restaurant. ${ctx}
+Pick the 5 best choices for them from the menu (respecting the diet and foods to avoid), then up to 3 items to skip. Use the restaurant's published nutrition when you know it, otherwise estimate from typical recipes.
+Reply with ONLY JSON: {"restaurant":"name if known","best":[${ITEM_SHAPE}],"skip":[{"name":"...","why":"..."}],"tip":"one sentence ordering tip"}`;
+  const content: any[] = [];
+  if (input.image) {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(input.image);
+    if (!m) throw Object.assign(new Error("That photo couldn't be read."), { status: 400 });
+    content.push({ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } }, { type: "text", text: `Menu photo${input.restaurant ? ` from ${input.restaurant}` : ""}.` });
+  } else content.push({ type: "text", text: `Restaurant: ${String(input.restaurant || "").slice(0, 80)}` });
+  return claudeJSON(system, content);
+}
+export async function chainMenu(db: any, name: string, country: string) {
+  const n = name.trim().slice(0, 60), c = (country || "United States").trim().slice(0, 40);
+  if (n.length < 2) return { items: [] };
+  return cached(db, `chain:${c.toLowerCase()}:${n.toLowerCase()}`, 60, async () => {
+    const system = `You are a nutrition database. List up to 30 popular menu items from the restaurant chain the user names, as sold in ${c}, using the chain's published nutrition information where you know it (round sensibly). If you are not confident about an item's numbers, set "est": true.
+For each item add "why": a short, honest health note (benefit or caution) and "swap": an easy healthier tweak if one exists.
+Reply with ONLY JSON: {"chain":"official name","country":"${c}","cuisine":"...","items":[{"name":"...","portion":"...","kcal":0,"protein":0,"carbs":0,"fat":0,"sugar":0,"sodium":0,"est":false,"why":"...","swap":"..."}],"known":true}
+If you don't recognize the chain, reply {"known":false,"items":[]}.`;
+    const r = await claudeJSON(system, [{ type: "text", text: n }], 3500);
+    return r && r.items ? r : { known: false, items: [] };
+  });
+}
+export async function pantryScan(image: string) {
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(image);
+  if (!m) throw Object.assign(new Error("That photo couldn't be read."), { status: 400 });
+  return claudeJSON(`List the foods and ingredients you can see in this fridge, pantry or counter photo. Use simple grocery names (e.g. "eggs", "chicken breast", "spinach", "rice"). Reply with ONLY JSON: {"items":["..."]}`,
+    [{ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } }, { type: "text", text: "What's here?" }], 600);
+}
+export async function weeklyReview(stats: any) {
+  return claudeJSON(`You are a warm, practical fitness and nutrition coach. Write a short weekly review for the member from their numbers. Be specific, encouraging and honest; no medical advice.
+Reply with ONLY JSON: {"headline":"one upbeat line","wins":["...","..."],"focus":"the one most useful thing to change next week","tip":"one concrete tip (a meal, habit or workout tweak)"}`,
+    [{ type: "text", text: JSON.stringify(stats).slice(0, 3000) }], 700);
+}

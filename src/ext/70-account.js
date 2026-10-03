@@ -7,9 +7,11 @@ const PLAN_INFO = {
   family_month:{name:"Family", price:24.99, per:"month", blurb:"You plus 4 people in your household"},
   family_year:{name:"Family annual", price:199, per:"year", blurb:"You plus 4, billed once a year", save:24.99*12-199},
   coach_month:{name:"Coach", price:29.99, per:"month", blurb:"Client dashboard for up to 25 clients"},
-  coach_unlimited_month:{name:"Coach Unlimited", price:49.99, per:"month", blurb:"Unlimited clients"}
+  coach_unlimited_month:{name:"Coach Unlimited", price:49.99, per:"month", blurb:"Unlimited clients"},
+  fleet_month:{name:"Fleet", price:10, per:"month", blurb:"20-seat minimum. $10 a seat for 20–50, $8 a seat for 51+", seat:true}
 };
-const planLine = k => { const p = PLAN_INFO[k]; return p ? `${p.name} · ${money(p.price)}/${p.per}` : "Founding member · $12.99/month"; };
+const fleetUnit = n => n > 50 ? 8 : 10, FLEET_MIN = 20;
+const planLine = k => { const p = PLAN_INFO[k]; if (k === "fleet_month"){ const u = me(), n = (u && u.fleet && u.fleet.seats) || 1; return `Fleet · ${n} seats × ${money(fleetUnit(n))} = ${money(fleetUnit(n)*n)}/month`; } return p ? `${p.name} · ${money(p.price)}/${p.per}` : "Founding member · $12.99/month"; };
 SHEETS.plans = () => {
   const u = me(), cur = u && u.sub.ownPlan, active = u && u.sub.active && u.sub.via === "own";
   const card = k => { const p = PLAN_INFO[k], on = active && cur === k && !u.sub.legacy;
@@ -20,9 +22,26 @@ SHEETS.plans = () => {
     <span class="eyebrow">Just you</span><div class="grid g-2">${card("individual_month")}${card("individual_year")}</div>
     <span class="eyebrow">Your household</span><div class="grid g-2">${card("family_month")}${card("family_year")}</div>
     <span class="eyebrow">Trainers & coaches</span><div class="grid g-2">${card("coach_month")}${card("coach_unlimited_month")}</div>
+    <span class="eyebrow">Companies & fleets</span>${fleetPlanCard(active && cur === "fleet_month")}
     <p class="small muted">${active ? "Switching takes effect now. Stripe credits the unused part of your current plan toward the new one." : "Every plan starts with a 7-day free trial if you haven't had one. Cancel any time."}</p></div>`};
 };
 A.openPlans = () => openSheet("plans");
+function fleetPlanCard(on){
+  return `<div class="plancard ${on ? "on" : ""}"><div class="row"><b>Fleet & company wellness</b><span class="spacer"></span><span class="num"><b>$8–10</b><small class="muted">/seat/month</small></span></div>
+    <p class="small muted"><b>20-seat minimum.</b> $10 per seat for 20–50 seats, $8 per seat for 51 or more. Buy seats for your drivers or employees. Each person gets full Premium on their own private account: meal plans, food logging, workouts, DOT physical prep, sleep and fasting. Coach tools aren't included. You see who joined and who's active, never their health data.</p>
+    ${on ? `<span class="small" style="color:var(--good);font-weight:700">Your plan · manage seats under Account</span>` : `<form class="row" data-form="fleetBuy"><input id="fbCo" type="text" placeholder="Company name" maxlength="80" style="flex:2;min-width:160px" aria-label="Company name"><input id="fbSeats" type="number" min="20" max="5000" value="20" style="width:90px" aria-label="Number of seats"><button class="btn sm primary">Set up fleet</button></form><p class="small muted" id="fbTotal">20 seats × $10.00 = $200.00/month</p>`}</div>`;
+}
+document.addEventListener("input", e => { if (e.target.id === "fbSeats"){ const n = Math.round(+e.target.value || 0), t = $("#fbTotal"); if (t) t.textContent = n < FLEET_MIN ? `Fleet plans start at ${FLEET_MIN} seats` : `${n} seats × ${money(fleetUnit(n))} = ${money(n*fleetUnit(n))}/month`; } });
+document.addEventListener("submit", async e => { const f = e.target.closest('[data-form="fleetBuy"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  const u = me(), seats = Math.round(+$("#fbSeats").value || 0), company = $("#fbCo").value.trim(), btn = f.querySelector("button");
+  if (company.length < 2) return toast("Enter your company name");
+  if (!(seats >= FLEET_MIN)) return toast(`Fleet plans start at ${FLEET_MIN} seats`);
+  const active = u && u.sub.active && u.sub.via === "own";
+  if (active && !confirm(`Switch your membership to a Fleet plan with ${seats} seats (${money(seats*fleetUnit(seats))}/month)? Your own access stays included.`)) return;
+  btn.disabled = true;
+  try { if (active){ const j = await api("billing/change", {plan:"fleet_month", seats, company}); window.RR_USER = j.user; closeSheet(); render(); toast("Fleet plan is on. Invite your drivers under Account."); }
+    else { const j = await api("billing/checkout", {plan:"fleet_month", seats, company}); location.href = j.url; } }
+  catch (x){ toast(x.message); btn.disabled = false; } }, true);
 A.pickPlan = async el => {
   const k = el.dataset.p, u = me(), p = PLAN_INFO[k];
   const active = u && u.sub.active && u.sub.via === "own";
@@ -37,8 +56,8 @@ const fam = {list:null, err:""};
 async function famLoad(){ try { fam.list = (await api("family/list")).members; } catch (e){ fam.err = e.message; } if (ui.view === "profile" && !isTyping()) render(); }
 function rrAccountCard(){
   const u = me(), st = u.sub.status, d = t => t ? new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "";
-  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : planLine(u.sub.legacy ? null : u.sub.ownPlan);
-  const line = u.sub.via === "family" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
+  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : u.sub.via === "fleet" ? `Premium · covered by ${esc(u.sub.fleetCompany)}` : u.sub.active || u.sub.status !== "none" ? planLine(u.sub.legacy ? null : u.sub.ownPlan) : "Free";
+  const line = u.sub.via === "family" || u.sub.via === "fleet" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
   if (u.family && fam.list === null){ fam.list = []; famLoad(); }
   return `<section class="card stack"><h2>Account & billing</h2>
     <div class="kv"><span>Email</span><span>${esc(u.email)}</span></div><div class="kv"><span>Plan</span><span>${plan}</span></div><div class="kv"><span>Status</span><span>${esc(line)}</span></div>
@@ -46,7 +65,8 @@ function rrAccountCard(){
     ${u.family ? `<div class="stack"><span class="eyebrow">Your household · ${fam.list ? fam.list.length : 0} of 4 added</span>
       <div class="list">${(fam.list || []).map(m => `<div class="li"><div class="main"><b>${esc(m.name || m.email)}</b><small>${esc(m.email)} · ${m.joined ? "joined" : "invited, not signed up yet"}</small></div><button class="btn sm danger" data-act="famRemove" data-e="${esc(m.email)}">Remove</button></div>`).join("")}</div>
       ${(fam.list || []).length < 4 ? `<form class="row" data-form="famAdd"><input id="famEmail" type="email" placeholder="Their email" style="flex:1;min-width:180px" aria-label="Family member email"><button class="btn sm primary">Add</button></form><p class="small muted">They create an account with that email and get full access, no card needed.</p>` : ""}</div>` : ""}
-    <div class="row">${u.sub.via !== "family" ? `<button class="btn sm" data-act="openPlans">Change plan</button><button class="btn sm" data-rr="portal">Manage billing</button>` : ""}<button class="btn sm" data-rr="logout">Log out</button><button class="btn sm danger" data-rr="delAsk">Delete account</button></div>
+    ${u.fleet ? fleetPanel() : ""}${!u.sub.active ? `<form class="row" data-form="fleetJoin"><input id="fjCode" type="text" placeholder="Company or fleet code" maxlength="12" style="flex:1;min-width:160px;text-transform:uppercase" aria-label="Company code"><button class="btn sm">Join my company</button></form><p class="small muted">If your employer or fleet covers Rep &amp; Ration, enter their code to unlock Premium.</p>` : ""}
+    <div class="row">${u.sub.via !== "family" && u.sub.via !== "fleet" ? `<button class="btn sm" data-act="openPlans">Change plan</button><button class="btn sm" data-rr="portal">Manage billing</button>` : ""}<button class="btn sm" data-rr="logout">Log out</button><button class="btn sm danger" data-rr="delAsk">Delete account</button></div>
     ${rrDel ? `<div class="confirm"><span>Delete your account, cancel your subscription and erase your data? This can't be undone.</span><button class="btn sm danger" data-rr="delYes">Delete my account</button><button class="btn sm" data-rr="delNo">Cancel</button></div>` : ""}
     <p class="small muted">Billing is handled by Stripe. Cancel any time from Manage billing. <a href="/terms.html" target="_blank">Terms</a> · <a href="/privacy.html" target="_blank">Privacy</a> · <a href="/support.html" target="_blank">Help</a></p></section>`;
 }
@@ -121,3 +141,33 @@ A.exportCSV = () => {
   setTimeout(() => downloadFile(`rep-and-ration-weight-${todayKey()}.csv`, w.join("\n"), "text/csv"), 400);
   setTimeout(() => downloadFile(`rep-and-ration-workouts-${todayKey()}.csv`, s.join("\n"), "text/csv"), 800);
 };
+
+/* ---------- fleet seats (manager side) ---------- */
+const fleet = {data:null, err:"", busy:false};
+async function fleetLoad(route = "fleet/list", body = {}){ fleet.busy = true; try { fleet.data = await api(route, body); fleet.err = ""; } catch (e){ fleet.err = e.message; toast(e.message); } fleet.busy = false; if (ui.view === "profile" && !isTyping()) render(); return fleet.data; }
+function fleetPanel(){
+  if (!fleet.data && !fleet.busy && !fleet.err) fleetLoad();
+  const d = fleet.data; if (!d) return `<div class="loading"><span class="spin"></span> Loading your fleet…</div>`;
+  const ago = t => { if (!t) return "not active yet"; const h = (Date.now() - new Date(t))/36e5; return h < 24 ? "active today" : h < 48 ? "active yesterday" : `active ${Math.floor(h/24)} days ago`; };
+  return `<div class="stack fleetbox"><div class="row"><span class="eyebrow" style="flex:1">${esc(d.company || "Your fleet")} · ${d.used} of ${d.seats} seats used</span><button class="btn sm ghost" data-act="fleetRename">Rename</button></div>
+    <div class="grid g-3 fleetstats"><div><b>${d.seats}</b><small>seats · ${money(d.seats*fleetUnit(d.seats))}/mo</small></div><div><b>${d.drivers.filter(x => x.joined).length}</b><small>signed up</small></div><div><b>${d.activeWeek}</b><small>active this week</small></div></div>
+    <div class="row" style="gap:8px"><span class="small muted">Join code</span><b class="mono" style="letter-spacing:.14em;font-size:1.15rem;flex:1">${esc(d.code || "")}</b><button class="btn sm" data-act="fleetCopy">Copy invite</button><button class="btn sm ghost" data-act="fleetNewCode">New code</button></div>
+    <p class="small muted">Drivers create a free account, then enter this code under Profile → Account to unlock Premium. Or add their emails below and they're covered the moment they sign up.</p>
+    <form class="stack" data-form="fleetAdd"><textarea id="fleetEmails" rows="2" placeholder="Driver emails, separated by commas or new lines" aria-label="Driver emails"></textarea><div class="row"><button class="btn sm primary">Add drivers</button><span class="small muted">${d.seats - d.used} open seat${d.seats - d.used === 1 ? "" : "s"}</span></div></form>
+    <form class="row" data-form="fleetSeats"><label class="small" style="flex:1">Seats on the plan</label><input id="fleetSeatN" type="number" min="${Math.max(FLEET_MIN, d.used)}" max="5000" value="${d.seats}" style="width:100px"><button class="btn sm">Update seats</button></form>
+    ${d.drivers.length ? `<div class="list">${d.drivers.map(m => `<div class="li"><div class="main"><b>${esc(m.name || m.email)}</b><small>${esc(m.email)} · ${m.joined ? ago(m.lastActive) : "invited, not signed up yet"}</small></div><button class="btn sm danger" data-act="fleetRemove" data-e="${esc(m.email)}">Remove</button></div>`).join("")}</div>` : `<p class="small muted">No drivers yet.</p>`}
+    <p class="small muted">Privacy: you see names, emails and whether people are using the app. Their food, weight, sleep, blood pressure and DOT prep stay private to them.</p></div>`;
+}
+A.fleetRemove = el => { if (confirm(`Remove ${el.dataset.e}? Their Premium access ends and the seat opens up.`)) fleetLoad("fleet/remove", {email:el.dataset.e}); };
+A.fleetNewCode = () => { if (confirm("Make a new join code? The old code stops working. Drivers who already joined keep their seats.")) fleetLoad("fleet/newcode"); };
+A.fleetRename = () => { const n = prompt("Company name", (fleet.data && fleet.data.company) || ""); if (n) fleetLoad("fleet/company", {company:n}); };
+A.fleetCopy = async () => { const d = fleet.data; const t = `${d.company} covers Rep & Ration Premium for you. 1) Create a free account at ${location.origin} 2) Go to Profile → Account and enter code ${d.code}.`;
+  try { await navigator.clipboard.writeText(t); toast("Invite copied"); } catch { prompt("Copy this invite", t); } };
+document.addEventListener("submit", async e => {
+  const f = e.target.closest('[data-form="fleetAdd"],[data-form="fleetSeats"],[data-form="fleetJoin"]'); if (!f) return; e.preventDefault(); e.stopImmediatePropagation();
+  const k = f.dataset.form;
+  if (k === "fleetAdd"){ const r = await fleetLoad("fleet/add", {emails:$("#fleetEmails").value}); if (r && !fleet.err) toast("Drivers added. They're covered as soon as they sign up."); }
+  else if (k === "fleetSeats"){ const n = Math.round(+$("#fleetSeatN").value || 0), d = fleet.data; if (n === d.seats) return; if (n < FLEET_MIN) return toast(`Fleet plans need at least ${FLEET_MIN} seats`); if (!confirm(`Change to ${n} seats (${money(n*fleetUnit(n))}/month)? ${me().sub.status === "trialing" ? "" : "Stripe prorates the difference."}`)) return; const r = await fleetLoad("fleet/seats", {seats:n}); if (r && !fleet.err){ if (window.RR_USER && RR_USER.fleet) RR_USER.fleet.seats = r.seats; toast(`Fleet now has ${r.seats} seats`); } }
+  else { const btn = f.querySelector("button"); btn.disabled = true;
+    try { const j = await api("fleet/join", {code:$("#fjCode").value}); window.RR_USER = j.user; render(); toast(`Welcome aboard. ${j.company || "Your company"} covers your Premium.`); } catch (x){ toast(x.message); btn.disabled = false; } }
+}, true);

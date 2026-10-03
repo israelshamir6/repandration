@@ -50,7 +50,7 @@ A.closeSheet = () => closeSheet();
 /* ---------- quick actions (+ button) ---------- */
 SHEETS.quick = () => ({title:"Quick add", body:`<div class="qgrid">
   ${[["qSearch","search","Search food","Millions of foods & drinks"],["qScan","scan","Scan barcode","Packaged foods"],["qPhoto","camera","Snap a meal","AI estimates it for you"],["qSay","mic","Say it","\"2 eggs and toast\""],
-     ["qWeight","scale","Log weight","Updates your trend"],["qWorkout","workouts","Start workout","Today's session"],["qWater","water","Add water","One glass"],["qRecipe","plan","New recipe","Build & save a meal"]]
+     ["qWeight","scale","Log weight","Updates your trend"],["qWorkout","workouts","Start workout","Today's session"],["qWater","water","Add water","One glass"],["qRecipe","plan","New recipe","Build & save a meal"],["menuScan","eatout","Scan a menu","Best picks when eating out"],["pantryOpen","nutrition","Cook with what I have","Meals from your fridge"],["openSleep","moon","Log sleep","Hours last night"],["fastQuick","clock","Start a fast","16:8 and more"]]
     .map(([a,i,t,s]) => `<button class="qbtn" data-act="${a}"><span class="qi">${ICON[i]}</span><b>${t}</b><small>${s}</small></button>`).join("")}</div>`});
 A.quick = () => openSheet("quick");
 A.qWeight = () => openSheet("weigh");

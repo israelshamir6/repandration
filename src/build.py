@@ -114,11 +114,22 @@ for old, new in [("function renderNav(){", "function renderNav0(){"), ("function
                  ("function calc(p){", "function calc0(p){"), ("function mealPool(slot, p){", "function mealPool0(slot, p){"),
                  ("function makeDraft(di){", "function makeDraft0(di){"), ("function perfText(exId){", "function perfText0(exId){"),
                  ("function buildWeek(p, seed){", "function buildWeek0(p, seed){"), ("const srcBadge = k =>", "const srcBadge0 = k =>"),
-                 ("const blockedSet = p =>", "const blockedSet0 = p =>"), ("function prepSteps(plan, from, to){", "function prepSteps0(plan, from, to){"), ("function lineChart(series, opt={}){", "function lineChart0(series, opt={}){"), ("function V_progress(){", "function V_progress0(){"), ("function calBars(target){", "function calBars0(target, w){")]:
+                 ("const blockedSet = p =>", "const blockedSet0 = p =>"), ("function prepSteps(plan, from, to){", "function prepSteps0(plan, from, to){"), ("function lineChart(series, opt={}){", "function lineChart0(series, opt={}){"), ("function V_progress(){", "function V_progress0(){"), ("function mealCard(m, di, mi, logged){", "function mealCard0(m, di, mi, logged){"), ("function calBars(target){", "function calBars0(target, w){")]:
     s = rep(s, old, new)
 # charts are drawn at the real on-screen width so labels stay crisp and readable
 s = rep(s, "const W=640, H=opt.h||220, L=46, R=16, T=14, B=28;", "const W=opt.w||640, H=opt.h||220, L=46, R=16, T=14, B=30;")
 s = rep(s, "const W=640,H=200,L=46,R=12,T=14,B=28, days=[];", "const W=w||640,H=200,L=46,R=12,T=14,B=30, days=[];")
+# y-axis labels: thin them out on short charts so numbers never crowd or overlap
+s = rep(s, '  for (const v of t) g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end">${fmt1(v)}</text>`;',
+  '  { let lastY = 1e9; for (const v of t){ const y = Y(v), show = lastY - y >= 18; if (show) lastY = y; g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/>${show ? `<text x="${L-8}" y="${y+4}" text-anchor="end">${fmt1(v)}</text>` : ""}`; } }')
+# date labels: one per distinct day, spaced by the real width, never stacked on top of each other
+s = rep(s, '  const xt = [x0, x0+(x1-x0)/2, x1];\n  xt.forEach((x,i) => { const d = new Date(x); g += `<text x="${X(x)}" y="${H-8}" text-anchor="${i===0?"start":i===2?"end":"middle"}">${MON[d.getMonth()]} ${d.getDate()}</text>`; });',
+  '  { const day = x => { const d = new Date(x); d.setHours(0,0,0,0); return +d; }, d0 = day(x0), d1 = day(x1), span = Math.round((d1-d0)/864e5);\n'
+  '    const slots = Math.max(1, Math.min(span, Math.floor((W-L-R)/110))), seen = new Set(), xt = [];\n'
+  '    for (let i = 0; i <= slots; i++){ const d = slots ? day(d0 + (d1-d0)*i/slots + 432e5) : d0; if (!seen.has(d)){ seen.add(d); xt.push(d); } if (!span) break; }\n'
+  '    let lastR = -1e9; xt.forEach((x,i) => { const px = span ? X(clamp(x, x0, x1)) : (L+W-R)/2, dt = new Date(x), lab = `${MON[dt.getMonth()]} ${dt.getDate()}`, wd = lab.length*6.6;\n'
+  '      const anc = !span ? "middle" : i===0 ? "start" : i===xt.length-1 ? "end" : "middle", left = anc==="start" ? px : anc==="end" ? px-wd : px-wd/2;\n'
+  '      if (left < lastR + 10) return; lastR = left + wd; g += `<text x="${px}" y="${H-8}" text-anchor="${anc}">${lab}</text>`; }); }')
 # exercises referenced by saved plans always resolve, even before the gym library loads
 s = rep(s, "const EX = Object.fromEntries(EXS.map(e => [e.id,e]));",
   'const EX = new Proxy(Object.fromEntries(EXS.map(e => [e.id,e])), {get(t, k){ if (typeof k !== "string" || k in t) return t[k]; return {id:k, name: String(k).replace(/^fx-|^wg-|^cx-/, "").replace(/_/g, " "), impact:1, pattern:"core", equip:[], metric:"reps", loaded:false, muscles:"", dose:10, cue:"", gen:false}; }});')

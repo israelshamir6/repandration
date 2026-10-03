@@ -32,7 +32,7 @@ button.li:last-child,a.li:last-child{border-bottom:0}
 .morelink svg:last-child{width:18px;height:18px;color:var(--muted)}
 .morelink:hover .main b{color:var(--accent-strong)}
 /* food */
-.logbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.logbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .logbtn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:650;font-size:.85rem;color:var(--ink);box-shadow:var(--shadow)}
 .logbtn svg{width:24px;height:24px;color:var(--accent-strong)}
 .logbtn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -115,7 +115,7 @@ button.li:last-child,a.li:last-child{border-bottom:0}
   .fab{bottom:calc(76px + env(safe-area-inset-bottom,0px));right:16px;width:54px;height:54px}
   .tabbar{grid-template-columns:repeat(5,1fr)!important}
   .sheet,.sheet.wide{left:0;right:0;top:auto;bottom:0;transform:none;width:100%;max-height:92vh;border-radius:20px 20px 0 0;animation:up .22s ease;padding-bottom:env(safe-area-inset-bottom,0px)}
-  .logbar{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .logbar{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
   .logbtn{padding:10px 2px;font-size:.72rem}
   .logbtn svg{width:20px;height:20px}
   .nutgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -148,3 +148,40 @@ input[type=date],input[type=time],input[type=email],input[type=password],input[t
 input[type=date]:focus,input[type=time]:focus,input[type=email]:focus,input[type=password]:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 form.row>label.f,form.row>.btn{align-self:flex-end}
 form.row .btn{min-height:42px}
+/* health benefits */
+.benefits{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.bpill{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;font-weight:600;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+/* sleep bars */
+.sleepbars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;align-items:end;height:96px}
+.sleepbars>div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
+.sleepbars i{display:block;width:100%;max-width:22px;border-radius:5px 5px 2px 2px;min-height:3px}
+.sleepbars small{font-size:.68rem;color:var(--muted)}
+/* habits */
+.habits .habit{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.habit .track,.fleetbox .track{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.habit .track i{display:block;height:100%;border-radius:99px}
+/* free-tier locks */
+.lockic{width:14px;height:14px;margin-left:6px;vertical-align:-2px;opacity:.75;flex:none}
+.qi .lockic{width:22px;height:22px;margin:0;opacity:1}
+.lockcard{align-items:flex-start;border-style:dashed}
+.upsheet .qi{flex:none}
+/* fleet */
+.fleetbox{border:1px solid var(--line);border-radius:12px;padding:14px}
+.fleetstats>div{display:flex;flex-direction:column;padding:10px;border-radius:10px;background:var(--surface-2)}
+.fleetstats b{font-size:1.4rem}
+.fleetstats small{color:var(--muted);font-size:.78rem}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.fleetbox textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical}
+@media (max-width:640px){.fleetstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+.gfleet{margin-top:16px}
+/* progress photos */
+.photocmp figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.photocmp img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;background:var(--surface-2)}
+.photocmp figcaption{font-size:.82rem;color:var(--muted);text-align:center}
+.photostrip{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.photostrip .ph{position:relative;flex:0 0 96px;display:flex;flex-direction:column;gap:3px}
+.photostrip img{width:96px;height:128px;object-fit:cover;border-radius:10px;background:var(--surface-2)}
+.photostrip small{font-size:.7rem;color:var(--muted)}
+.photostrip .btn{position:absolute;top:4px;right:4px;padding:2px 7px;min-height:0;background:var(--surface)}
+/* offline */
+.offline{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));z-index:60;background:var(--ink);color:var(--surface);padding:8px 14px;border-radius:999px;font-size:.85rem;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:calc(100vw - 32px);text-align:center}

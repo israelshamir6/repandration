@@ -1,9 +1,10 @@
 import type { Context, Config } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import Stripe from "stripe";
-import { ACTIVE, PLANS, isPlan, money, stripe, priceFor, planOfSub, sendMail, mailReady, vapid, pushTo, type PlanKey } from "../lib/shared.mts";
-import { searchFoods, barcode, aiMeal, aiReady } from "../lib/food.mts";
+import { ACTIVE, PLANS, FLEET_MIN, FLEET_MAX, fleetSeatPrice, isPlan, money, stripe, priceFor, planOfSub, sendMail, mailReady, vapid, pushTo, type PlanKey } from "../lib/shared.mts";
+import { searchFoods, barcode, aiMeal, aiReady, menuScan, chainMenu, pantryScan, weeklyReview } from "../lib/food.mts";
 import { videoRoutes, deleteVideoBlobs } from "../lib/videos.mts";
+import { photoRoutes, deleteAllPhotos } from "../lib/photos.mts";
 import { scrypt as _scrypt, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
 
@@ -44,6 +45,11 @@ async function access(db: any, u: any): Promise<{ active: boolean; via?: string;
   const [f] = await db.sql`SELECT o.name, o.email, o.plan FROM family_members m JOIN users o ON o.id = m.owner_id
     WHERE m.email = ${u.email} AND o.sub_status IN ('trialing','active','past_due') AND o.plan LIKE 'family%' LIMIT 1`;
   if (f) return { active: true, via: "family", plan: f.plan, owner: f.name || f.email };
+  // a driver seat on an active fleet plan; seats beyond what the company pays for (oldest first) don't count
+  const [fl] = await db.sql`SELECT o.company, o.name, o.email FROM fleet_members m JOIN users o ON o.id = m.owner_id
+    WHERE m.email = ${u.email} AND o.sub_status IN ('trialing','active','past_due') AND o.plan = 'fleet_month'
+      AND (SELECT COUNT(*) FROM fleet_members m2 WHERE m2.owner_id = m.owner_id AND m2.added_at < m.added_at) < COALESCE(o.seats, 1) LIMIT 1`;
+  if (fl) return { active: true, via: "fleet", plan: "fleet_month", owner: fl.company || fl.name || fl.email };
   return { active: false };
 }
 async function publicUser(db: any, u: any) {
@@ -51,11 +57,12 @@ async function publicUser(db: any, u: any) {
   const plan = a.plan || u.plan || null;
   return {
     id: u.id, email: u.email, name: u.name,
-    sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: a.active, via: a.via || null, familyOwner: a.owner || null,
+    sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: a.active, via: a.via || null, familyOwner: a.owner || null, fleetCompany: a.via === "fleet" ? a.owner : null,
       plan, ownPlan: u.plan || (ACTIVE.includes(u.sub_status || "") ? "individual_month" : null), legacy: ACTIVE.includes(u.sub_status || "") && !u.plan,
-      billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial },
+      billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial, tier: a.active ? "premium" : "free" },
     coach: a.active && a.via === "own" && String(plan || "").startsWith("coach") ? { clients: PLANS[plan as PlanKey]?.clients || 0 } : null,
     family: a.active && a.via === "own" && String(plan || "").startsWith("family") ? { seats: 4 } : null,
+    fleet: a.active && a.via === "own" && plan === "fleet_month" ? { seats: u.seats || 1, company: u.company || "" } : null,
     features: { ai: aiReady(), mail: mailReady() }
   };
 }
@@ -68,8 +75,9 @@ async function saveSub(db: any, sub: Stripe.Subscription) {
   const cust = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const anyPrice: any = anySub.items?.data?.[0]?.price;
   const plan = anyPrice && anyPrice.lookup_key ? planOfSub(sub) : (sub.metadata?.plan && isPlan(sub.metadata.plan) ? sub.metadata.plan : null);
+  const seats = anySub.items?.data?.[0]?.quantity || 1;
   await db.sql`UPDATE users SET sub_status = ${sub.status}, trial_end = ${sub.trial_end ? new Date(sub.trial_end * 1000) : null},
-    period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}, plan = ${plan}
+    period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}, plan = ${plan}, seats = ${seats}
     WHERE id = ${uid} OR stripe_customer_id = ${cust}`;
 }
 
@@ -274,14 +282,24 @@ async function handle(req: Request, context: Context): Promise<Response> {
       for (const sub of subs.data) if (!["canceled", "incomplete_expired"].includes(sub.status)) await s.subscriptions.cancel(sub.id);
     }
     for (const v of await db.sql`SELECT id FROM videos WHERE user_id = ${me.id}`) await deleteVideoBlobs(v.id).catch(() => {});
+    await deleteAllPhotos(db, me.id).catch(() => {});
     await db.sql`DELETE FROM docs WHERE path LIKE ${`data/users/${me.id}/%`}`;
     await db.sql`DELETE FROM coach_msgs WHERE coach_id = ${me.id} OR client_id = ${me.id}`;
+    await db.sql`DELETE FROM fleet_members WHERE email = ${me.email}`;
+    await db.sql`DELETE FROM family_members WHERE email = ${me.email}`;
     await db.sql`DELETE FROM users WHERE id = ${me.id}`;
     return json({ ok: true }, 200, { "set-cookie": cookieFor("", 0) });
   }
   if (route === "billing/checkout") {
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
     const plan: PlanKey = isPlan(body.plan) ? body.plan : "individual_month";
+    const fleet = plan === "fleet_month", qty = fleet ? Math.round(Number(body.seats) || 0) : 1;
+    if (fleet) {
+      if (!(qty >= FLEET_MIN && qty <= FLEET_MAX)) return fail(400, `Fleet plans start at ${FLEET_MIN} seats (up to ${FLEET_MAX}).`);
+      const company = String(body.company || "").trim().slice(0, 80);
+      if (company.length < 2) return fail(400, "Enter your company name.");
+      await db.sql`UPDATE users SET company = ${company} WHERE id = ${me.id}`;
+    }
     await checkCustomer(s, db, me);
     // One free trial per email, even if the account was deleted and re-created.
     let hadTrial = !!me.had_trial;
@@ -291,17 +309,17 @@ async function handle(req: Request, context: Context): Promise<Response> {
       }
       if (hadTrial) await db.sql`UPDATE users SET had_trial = true WHERE id = ${me.id}`;
     }
-    const P = PLANS[plan], per = P.interval === "year" ? "year" : "month";
+    const P = PLANS[plan], per = P.interval === "year" ? "year" : "month", unit = fleet ? fleetSeatPrice(qty) : P.amount, total = unit * qty;
     const tax = Netlify.env.get("STRIPE_TAX") === "on";
     const cs = await s.checkout.sessions.create({
       mode: "subscription",
       client_reference_id: me.id,
       ...(me.stripe_customer_id ? { customer: me.stripe_customer_id, ...(tax ? { customer_update: { address: "auto", name: "auto" } } : {}) } : { customer_email: me.email }),
-      line_items: [{ quantity: 1, price: await priceFor(s, db, plan) }],
+      line_items: [{ quantity: qty, price: await priceFor(s, db, plan) }],
       payment_method_collection: "always",
       ...(tax ? { automatic_tax: { enabled: true }, billing_address_collection: "required" as const } : {}),
       subscription_data: { metadata: { uid: me.id, plan }, ...(hadTrial ? {} : { trial_period_days: TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }) },
-      custom_text: { submit: { message: hadTrial ? `You'll be charged ${money(P.amount)} today and every ${per} until you cancel.` : `Your card won't be charged today. After your 7-day free trial it's charged ${money(P.amount)}, then every ${per} until you cancel.` } },
+      custom_text: { submit: { message: hadTrial ? `You'll be charged ${money(total)}${fleet ? ` (${qty} seats × ${money(unit)})` : ""} today and every ${per} until you cancel.` : `Your card won't be charged today. After your 7-day free trial it's charged ${money(total)}${fleet ? ` (${qty} seats × ${money(unit)})` : ""}, then every ${per} until you cancel.` } },
       allow_promotion_codes: true,
       success_url: `${url.origin}/?checkout=success`,
       cancel_url: `${url.origin}/?checkout=cancel`
@@ -312,13 +330,20 @@ async function handle(req: Request, context: Context): Promise<Response> {
     // Switch an existing membership to another plan (monthly ↔ annual, individual ↔ family/coach). Stripe prorates the difference.
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
     if (!isPlan(body.plan)) return fail(400, "Pick a plan.");
+    const chQty = body.plan === "fleet_month" ? Math.round(Number(body.seats) || 0) : 1;
+    if (body.plan === "fleet_month") {
+      if (!(chQty >= FLEET_MIN && chQty <= FLEET_MAX)) return fail(400, `Fleet plans start at ${FLEET_MIN} seats (up to ${FLEET_MAX}).`);
+      const company = String(body.company || me.company || "").trim().slice(0, 80);
+      if (company.length < 2) return fail(400, "Enter your company name.");
+      await db.sql`UPDATE users SET company = ${company} WHERE id = ${me.id}`;
+    }
     await checkCustomer(s, db, me);
     const sub = await bestSub(s, me);
     if (!sub || !ACTIVE.includes(sub.status)) return fail(400, "You don't have an active membership to change. Start one instead.");
     const item = sub.items.data[0];
     const price = await priceFor(s, db, body.plan);
     if (item.price.id === price) return fail(400, "You're already on that plan.");
-    const upd = await s.subscriptions.update(sub.id, { items: [{ id: item.id, price }], proration_behavior: sub.status === "trialing" ? "none" : "create_prorations", metadata: { ...(sub.metadata || {}), uid: me.id, plan: body.plan } });
+    const upd = await s.subscriptions.update(sub.id, { items: [{ id: item.id, price, quantity: chQty }], proration_behavior: sub.status === "trialing" ? "none" : "create_prorations", metadata: { ...(sub.metadata || {}), uid: me.id, plan: body.plan } });
     await saveSub(db, upd);
     const [u] = await db.sql`SELECT * FROM users WHERE id = ${me.id}`;
     return json({ user: await publicUser(db, u) });
@@ -350,10 +375,16 @@ async function handle(req: Request, context: Context): Promise<Response> {
   }
 
   const acc = await access(db, me);
-  if (!acc.active) return fail(402, "Start your free trial to use this.");
+  // Free accounts: food logging by search, workout logging, buddies, progress and the meal plan. Everything else needs Premium.
+  const FREE_ROUTES = new Set(["db", "profiles", "food/search", "fleet/join", "fleet/mine"]);
+  // a member's own photos stay viewable (and deletable) even after Premium lapses
+  if (route.startsWith("photo/") || route === "photos/list" || route === "photos/delete") { const pr = await photoRoutes(route, db, me, body, true); if (pr) return pr; }
+  if (!acc.active && !FREE_ROUTES.has(route)) return fail(402, "This feature isn't available in free mode. Upgrade to Premium to use it.");
   const plan = acc.plan || "";
   const vr = await videoRoutes(route, req, url, db, me, acc.via === "own" && plan.startsWith("coach"), body, aiReady());
   if (vr) return vr;
+  const pr = await photoRoutes(route, db, me, body, acc.active);
+  if (pr) return pr;
 
   /* ----- food search, barcodes, AI ----- */
   if (route === "food/search") return json({ items: await searchFoods(db, String(body.q || "")) });
@@ -369,6 +400,21 @@ async function handle(req: Request, context: Context): Promise<Response> {
     if (u.n > AI_PER_DAY) return fail(429, `You've used today's ${AI_PER_DAY} AI scans. Search or scan a barcode, or try again tomorrow.`);
     try { return json(await aiMeal({ image: body.image ? String(body.image) : undefined, text: body.text ? String(body.text) : undefined })); }
     catch (e: any) { return fail(e.status || 500, e.message || "Couldn't read that meal."); }
+  }
+
+  if (["food/menu", "food/chain", "food/pantry", "ai/weekly"].includes(route)) {
+    if (!aiReady()) return fail(503, "AI features are switching on soon.");
+    if (body.image && String(body.image).length > 4_500_000) return fail(413, "That photo is too large.");
+    if (route !== "food/chain") {
+      const [u] = await db.sql`INSERT INTO ai_usage (user_id, day, n) VALUES (${me.id}, CURRENT_DATE, 1) ON CONFLICT (user_id, day) DO UPDATE SET n = ai_usage.n + 1 RETURNING n`;
+      if (u.n > AI_PER_DAY) return fail(429, `You've used today's ${AI_PER_DAY} AI requests. Try again tomorrow.`);
+    }
+    try {
+      if (route === "food/menu") return json(await menuScan({ image: body.image ? String(body.image) : undefined, restaurant: body.restaurant ? String(body.restaurant) : "", left: body.left, diet: String(body.diet || ""), avoid: Array.isArray(body.avoid) ? body.avoid.slice(0, 20).map(String) : [] }));
+      if (route === "food/chain") return json(await chainMenu(db, String(body.name || ""), String(body.country || "")));
+      if (route === "food/pantry") return json(await pantryScan(String(body.image || "")));
+      return json(await weeklyReview(body.stats || {}));
+    } catch (e: any) { return fail(e.status || 500, e.message || "Something went wrong."); }
   }
 
   /* ----- reminders & push ----- */
@@ -402,6 +448,77 @@ async function handle(req: Request, context: Context): Promise<Response> {
       ON CONFLICT (user_id) DO UPDATE SET tz = EXCLUDED.tz, items = EXCLUDED.items`;
     await db.sql`UPDATE users SET tz = ${tz} WHERE id = ${me.id}`;
     return json({ ok: true });
+  }
+
+  /* ----- fleet / company seats ----- */
+  if (route.startsWith("fleet/")) {
+    if (route === "fleet/mine") return json({ via: acc.via, company: acc.via === "fleet" ? acc.owner : null });
+    if (route === "fleet/join") {
+      const code = String(body.code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (code.length < 6) return fail(400, "Enter the code your company gave you.");
+      const [o] = await db.sql`SELECT id, company, seats, sub_status, plan FROM users WHERE fleet_code = ${code}`;
+      if (!o || o.plan !== "fleet_month" || !ACTIVE.includes(o.sub_status || "")) return fail(404, "That code isn't active. Check it with your company.");
+      if (acc.active && acc.via === "own") return fail(400, "You already have your own membership. Cancel it first if your company is covering you.");
+      const [{ n }] = await db.sql`SELECT COUNT(*)::int AS n FROM fleet_members WHERE owner_id = ${o.id}`;
+      const [already] = await db.sql`SELECT 1 FROM fleet_members WHERE owner_id = ${o.id} AND email = ${me.email}`;
+      if (!already && n >= (o.seats || 1)) return fail(400, `${o.company || "Your company"} has used all its seats. Ask them to add one.`);
+      await db.sql`INSERT INTO fleet_members (owner_id, email) VALUES (${o.id}, ${me.email}) ON CONFLICT DO NOTHING`;
+      const [u] = await db.sql`SELECT * FROM users WHERE id = ${me.id}`;
+      return json({ user: await publicUser(db, u), company: o.company });
+    }
+    if (acc.via !== "own" || plan !== "fleet_month") return fail(403, "Driver seats are managed by your company's fleet account.");
+    if (!me.fleet_code) {
+      for (let i = 0; i < 5 && !me.fleet_code; i++) {
+        const c = Array.from(randomBytes(8)).map(b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+        try { await db.sql`UPDATE users SET fleet_code = ${c} WHERE id = ${me.id}`; me.fleet_code = c; } catch {}
+      }
+    }
+    const seats = me.seats || 1;
+    const [{ used }] = await db.sql`SELECT COUNT(*)::int AS used FROM fleet_members WHERE owner_id = ${me.id}`;
+    if (route === "fleet/add") {
+      const emails = [...new Set(String(body.emails || "").toLowerCase().split(/[\s,;]+/).map(x => x.trim()).filter(Boolean))];
+      const bad = emails.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e));
+      if (!emails.length || bad.length) return fail(400, bad.length ? `Check these emails: ${bad.slice(0, 3).join(", ")}` : "Enter at least one driver email.");
+      const existing = new Set((await db.sql`SELECT email FROM fleet_members WHERE owner_id = ${me.id}`).map((r: any) => r.email));
+      const fresh = emails.filter(e => !existing.has(e) && e !== me.email);
+      if (used + fresh.length > seats) return fail(400, `You have ${seats - used} open seat${seats - used === 1 ? "" : "s"}. Add seats first, then invite more drivers.`);
+      for (const e of fresh) {
+        await db.sql`INSERT INTO fleet_members (owner_id, email) VALUES (${me.id}, ${e}) ON CONFLICT DO NOTHING`;
+        if (mailReady()) await sendMail(e, `${me.company || "Your company"} gave you Rep & Ration Premium`, [
+          `${me.company || "Your company"} is covering a Rep & Ration Premium membership for you: meal plans, food logging, workouts, DOT physical prep, sleep and more.`,
+          `Create your account with this email address (${e}) and you're in. No card needed. Your company sees only that you joined and when you last used the app, never your food, weight or health data.`
+        ], { label: "Create my account", url: url.origin }).catch(() => {});
+      }
+    } else if (route === "fleet/remove") {
+      await db.sql`DELETE FROM fleet_members WHERE owner_id = ${me.id} AND email = ${String(body.email || "").toLowerCase()}`;
+    } else if (route === "fleet/company") {
+      const company = String(body.company || "").trim().slice(0, 80);
+      if (company.length < 2) return fail(400, "Enter your company name.");
+      await db.sql`UPDATE users SET company = ${company} WHERE id = ${me.id}`; me.company = company;
+    } else if (route === "fleet/newcode") {
+      me.fleet_code = null;
+      for (let i = 0; i < 5 && !me.fleet_code; i++) {
+        const c = Array.from(randomBytes(8)).map(b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+        try { await db.sql`UPDATE users SET fleet_code = ${c} WHERE id = ${me.id}`; me.fleet_code = c; } catch {}
+      }
+    } else if (route === "fleet/seats") {
+      const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
+      const want = Math.round(Number(body.seats) || 0);
+      if (!(want >= FLEET_MIN && want <= FLEET_MAX)) return fail(400, `Fleet plans need at least ${FLEET_MIN} seats (up to ${FLEET_MAX}).`);
+      if (want < used) return fail(400, `You have ${used} drivers on the plan. Remove some before going down to ${want} seats.`);
+      const sub = await bestSub(s, me);
+      if (!sub || !ACTIVE.includes(sub.status)) return fail(400, "Your fleet plan isn't active.");
+      const upd = await s.subscriptions.update(sub.id, { items: [{ id: sub.items.data[0].id, quantity: want }], proration_behavior: sub.status === "trialing" ? "none" : "create_prorations" });
+      await saveSub(db, upd);
+      me.seats = want;
+    }
+    const rows = await db.sql`SELECT m.email, m.added_at, u.name, (u.id IS NOT NULL) AS joined,
+        (SELECT MAX(d.updated_at) FROM docs d WHERE u.id IS NOT NULL AND d.path LIKE 'data/users/' || u.id || '/%') AS last_active
+      FROM fleet_members m LEFT JOIN users u ON u.email = m.email WHERE m.owner_id = ${me.id} ORDER BY m.added_at`;
+    const week = Date.now() - 7 * 864e5;
+    const drivers = rows.map((r: any) => ({ email: r.email, name: r.name || "", joined: r.joined, lastActive: r.last_active, added: r.added_at }));
+    return json({ company: me.company || "", code: me.fleet_code, seats: me.seats || 1, used: drivers.length, price: fleetSeatPrice(me.seats || FLEET_MIN), min: FLEET_MIN,
+      activeWeek: drivers.filter((d: any) => d.lastActive && +new Date(d.lastActive) > week).length, drivers });
   }
 
   /* ----- family plan ----- */
