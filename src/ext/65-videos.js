@@ -21,7 +21,7 @@ function V_videos(){
   const total = Object.values(VV.counts || {}).reduce((a,b) => a + b, 0);
   return `<section class="card stack">
     <div class="row"><div style="flex:1;min-width:220px"><h2>Coach videos</h2><p class="small muted">Short demos from Rep &amp; Ration coaches. Every video is checked before it's published.</p></div>
-      ${isCoachPlan() ? `<button class="btn primary sm" data-act="nav" data-view="coach">Upload a demo</button>` : ""}</div>
+      ${canPost() ? `<button class="btn primary sm" data-act="nav" data-view="coach">Upload a demo</button>` : ""}</div>
     <div class="fsearch">${ICON.search}<input type="search" placeholder="Search exercises or @coaches" value="${esc(VV.q)}" data-field="vvQ" aria-label="Search coach videos"></div>
     <div class="chips"><button class="chip" data-act="vvCat" data-c="" aria-pressed="${!VV.cat && !VV.following}">All${total ? ` · ${total}` : ""}</button><button class="chip" data-act="vvFollowing" aria-pressed="${VV.following}">Following</button>
       ${cats.map(([k,l]) => `<button class="chip" data-act="vvCat" data-c="${k}" aria-pressed="${VV.cat===k}">${esc(l)}${VV.counts[k] ? ` · ${VV.counts[k]}` : ""}</button>`).join("")}</div>
@@ -53,7 +53,7 @@ async function mineLoad(){ try { VV.mine = await api("creator/me"); } catch (e){
   if (ui.view === "coach" && !isTyping() && !VV.up) render(); }
 const STATUS = {uploading:["Uploading","neutral"], processing:["Checking…","med"], published:["Live","low"], rejected:["Not published","high"], failed:["Failed","high"]};
 function creatorStudio(){
-  if (!isCoachPlan()) return "";
+  if (!canPost()) return "";
   if (!VV.mine){ mineLoad(); return `<section class="card"><div class="loading"><span class="spin"></span> Loading your videos…</div></section>`; }
   const c = VV.mine.creator, cats = VV.mine.cats || {};
   return `<section class="card stack"><div class="card-head" style="margin:0"><div><span class="eyebrow">Your demo videos</span><h2>${c ? `@${esc(c.handle)}` : "Set up your coach profile"}</h2>${c ? `<p class="small muted">${c.followers} follower${c.followers === 1 ? "" : "s"}</p>` : ""}</div></div>

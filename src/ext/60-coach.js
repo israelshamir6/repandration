@@ -6,6 +6,7 @@
 window.RR_COACH = {mine:null, clients:null, limit:0, code:"", sel:null, detail:null, unread:0, busy:false, err:""};
 const CO = window.RR_COACH;
 const isCoachPlan = () => !!(me() && me().coach);
+const canPost = () => isCoachPlan() || !!(me() && /^(israelshamir6|repandration27)@gmail\.com$/i.test(me().email));
 async function coachLoad(){
   if (!PUB || !me() || !me().sub.active) return;
   try {
@@ -51,7 +52,7 @@ function V_coach(){
       <div class="stack"><section class="card stack"><span class="eyebrow">Your coach code</span><div class="codebox"><b class="num">${esc(CO.code || "…")}</b></div><p class="small muted">Clients open Rep &amp; Ration → Coach → Connect to a coach, and enter this code. They choose what you see and can disconnect any time.</p><button class="btn sm" data-act="coCopy">Copy invite message</button></section>
       <section class="card stack"><h2>How coaches use it</h2><ul class="small" style="margin:0;padding-left:18px;line-height:1.7"><li>Check each client's calories and macros against their target</li><li>See every set, rep and load they log</li><li>Watch their weight trend and adherence</li><li>Message them right in the app</li><li>Post exercise demo videos for everyone to follow</li></ul></section></div></div>`;
     out += creatorStudio();
-  } else out += head("Coach", "Work with a personal trainer or nutrition coach");
+  } else { out += head("Coach", "Work with a personal trainer or nutrition coach"); if (canPost()) out += creatorStudio(); }
   // client side
   const mine = CO.mine || [];
   out += `<div class="grid g-2">${mine.map(c => `<section class="card stack"><div class="row"><div style="flex:1"><span class="eyebrow">Your coach</span><h2>${esc(c.name)}</h2></div><button class="btn sm danger" data-act="coLeave" data-id="${esc(c.id)}">Disconnect</button></div>
