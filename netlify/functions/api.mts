@@ -57,6 +57,19 @@ async function saveSub(db: any, sub: Stripe.Subscription) {
     period_end = ${periodEnd ? new Date(periodEnd * 1000) : null}, stripe_customer_id = ${cust}, had_trial = had_trial OR ${!!sub.trial_end}
     WHERE id = ${uid} OR stripe_customer_id = ${cust}`;
 }
+
+// A customer saved while Stripe was in test mode doesn't exist in live mode: forget it (and its test trial).
+async function checkCustomer(s: Stripe, db: any, me: any) {
+  if (!me.stripe_customer_id) return;
+  try {
+    const c: any = await s.customers.retrieve(me.stripe_customer_id);
+    if (!c.deleted) return;
+  } catch (e: any) {
+    if (!(e && (e.code === "resource_missing" || e.statusCode === 404 || /No such customer/.test(String(e.message))))) throw e;
+  }
+  await db.sql`UPDATE users SET stripe_customer_id = NULL, sub_status = NULL, trial_end = NULL, period_end = NULL, had_trial = false WHERE id = ${me.id}`;
+  me.stripe_customer_id = null; me.sub_status = null; me.trial_end = null; me.period_end = null; me.had_trial = false;
+}
 const SUB_RANK: Record<string, number> = { active: 5, trialing: 5, past_due: 4, unpaid: 3, incomplete: 2, canceled: 1, incomplete_expired: 0 };
 
 /* ---------- document store with server-side access rules ---------- */
@@ -193,6 +206,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
   }
   if (route === "account/delete") {
     const s = stripe();
+    if (s) await checkCustomer(s, db, me);
     if (s && me.stripe_customer_id) {
       const subs = await s.subscriptions.list({ customer: me.stripe_customer_id, status: "all", limit: 20 });
       for (const sub of subs.data) if (!["canceled", "incomplete_expired"].includes(sub.status)) await s.subscriptions.cancel(sub.id);
@@ -203,6 +217,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
   }
   if (route === "billing/checkout") {
     const s = stripe(); if (!s) return fail(503, "Payments aren't switched on yet.");
+    await checkCustomer(s, db, me);
     // One free trial per email, even if the account was deleted and re-created.
     let hadTrial = !!me.had_trial;
     if (!hadTrial) {
@@ -228,6 +243,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
   if (route === "billing/sync") {
     // Pull the member's subscription straight from Stripe (backup for a missed or failed webhook).
     const s = stripe(); if (!s) return json({ user: publicUser(me) });
+    await checkCustomer(s, db, me);
     const custIds: string[] = me.stripe_customer_id ? [me.stripe_customer_id] : (await s.customers.list({ email: me.email, limit: 10 })).data.map(c => c.id);
     let best: Stripe.Subscription | null = null;
     for (const cid of custIds) {
@@ -244,7 +260,8 @@ async function handle(req: Request, context: Context): Promise<Response> {
     return json({ user: publicUser(u) });
   }
   if (route === "billing/portal") {
-    const s = stripe(); if (!s || !me.stripe_customer_id) return fail(400, "No billing account yet.");
+    const s = stripe(); if (s) await checkCustomer(s, db, me);
+    if (!s || !me.stripe_customer_id) return fail(400, "No billing account yet.");
     const ps = await s.billingPortal.sessions.create({ customer: me.stripe_customer_id, return_url: `${url.origin}/#profile` });
     return json({ url: ps.url });
   }
