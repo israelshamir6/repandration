@@ -39,7 +39,7 @@ function stripe() {
   return key ? new Stripe(key) : null;
 }
 function subActive(u: any) {
-  if (!Netlify.env.get("STRIPE_SECRET_KEY")) return true; // billing not switched on yet: everyone gets in
+  if (!Netlify.env.get("STRIPE_SECRET_KEY")) return false; // never give free access if the payment key is missing
   return u && ["trialing", "active", "past_due"].includes(u.sub_status || "");
 }
 const publicUser = (u: any) => ({
