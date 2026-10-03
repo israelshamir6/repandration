@@ -45,7 +45,7 @@ async function access(db: any, u: any): Promise<{ active: boolean; via?: string;
   if (ACTIVE.includes(u.sub_status || "")) return { active: true, via: "own", plan: u.plan || "individual_month" };
   // complimentary Premium for the owner's own account(s): the support address plus any listed in COMP_EMAILS
   const comp = ["repandration27@gmail.com", ...String(Netlify.env.get("COMP_EMAILS") || "").toLowerCase().split(/[\s,;]+/)].filter(Boolean);
-  if (comp.includes(String(u.email || "").toLowerCase())) return { active: true, via: "comp", plan: "individual_year", owner: "Rep & Ration" };
+  if (comp.includes(String(u.email || "").toLowerCase())) return { active: true, via: "comp", plan: "coach_unlimited_month", owner: "Rep & Ration" };
   const [f] = await db.sql`SELECT o.name, o.email, o.plan FROM family_members m JOIN users o ON o.id = m.owner_id
     WHERE m.email = ${u.email} AND o.sub_status IN ('trialing','active','past_due') AND o.plan LIKE 'family%' LIMIT 1`;
   if (f) return { active: true, via: "family", plan: f.plan, owner: f.name || f.email };
@@ -64,7 +64,7 @@ async function publicUser(db: any, u: any) {
     sub: { status: u.sub_status || "none", trialEnd: u.trial_end, periodEnd: u.period_end, active: a.active, via: a.via || null, familyOwner: a.owner || null, fleetCompany: a.via === "fleet" ? a.owner : null,
       plan, ownPlan: u.plan || (ACTIVE.includes(u.sub_status || "") ? "individual_month" : null), legacy: ACTIVE.includes(u.sub_status || "") && !u.plan,
       billing: !!Netlify.env.get("STRIPE_SECRET_KEY"), canTrial: !u.had_trial, tier: a.active ? "premium" : "free" },
-    coach: a.active && a.via === "own" && String(plan || "").startsWith("coach") ? { clients: PLANS[plan as PlanKey]?.clients || 0 } : null,
+    coach: a.active && (a.via === "own" || a.via === "comp") && String(plan || "").startsWith("coach") ? { clients: PLANS[plan as PlanKey]?.clients || 0 } : null,
     family: a.active && a.via === "own" && String(plan || "").startsWith("family") ? { seats: 4 } : null,
     fleet: a.active && a.via === "own" && plan === "fleet_month" ? { seats: u.seats || 1, company: u.company || "" } : null,
     features: { ai: aiReady(), mail: mailReady() }
@@ -383,12 +383,22 @@ async function handle(req: Request, context: Context): Promise<Response> {
   const FREE_ROUTES = new Set(["db", "profiles", "food/search", "fleet/join", "fleet/mine"]);
   // a member's own photos stay viewable (and deletable) even after Premium lapses
   if (route.startsWith("photo/") || route === "photos/list" || route === "photos/delete") { const pr = await photoRoutes(route, db, me, body, true); if (pr) return pr; }
-  const mctx = (premium: boolean) => ({ premium, isCoach: acc.via === "own" && String(acc.plan || "").startsWith("coach"), s: stripe(), ai: claudeJSON, aiOn: aiReady(), mail: sendMail, mailOn: mailReady(), origin: url.origin });
+  // owner-only setup check: which services are switched on (never returns secret values)
+  if (route === "admin/status") {
+    if (acc.via !== "comp") return fail(403, "Owner only.");
+    const s = stripe(), key = Netlify.env.get("STRIPE_SECRET_KEY") || "";
+    let connect: any = null;
+    if (s) { try { const l = await s.accounts.list({ limit: 3 }); connect = { ok: true, accounts: l.data.length }; } catch (e: any) { connect = { ok: false, error: String(e?.message || e).slice(0, 200) }; } }
+    return json({ stripe: !!s, mode: key.includes("_test_") ? "test" : key ? "live" : null, webhook: !!Netlify.env.get("STRIPE_WEBHOOK_SECRET"), tax: Netlify.env.get("STRIPE_TAX") === "on", connect,
+      ai: aiReady(), mail: mailReady(), resendKey: !!Netlify.env.get("RESEND_API_KEY"), mailFrom: Netlify.env.get("MAIL_FROM") || null,
+      twilio: { sid: !!Netlify.env.get("TWILIO_ACCOUNT_SID"), token: !!Netlify.env.get("TWILIO_AUTH_TOKEN"), verify: !!Netlify.env.get("TWILIO_VERIFY_SID") }, fee: Netlify.env.get("MARKETPLACE_FEE_PCT") || "10 (default)" });
+  }
+  const mctx = (premium: boolean) => ({ premium, isCoach: (acc.via === "own" || acc.via === "comp") && String(acc.plan || "").startsWith("coach"), s: stripe(), ai: claudeJSON, aiOn: aiReady(), mail: sendMail, mailOn: mailReady(), origin: url.origin });
   // things people already paid for stay reachable even if their membership lapses
   if (route.startsWith("mimg/") || route === "market/purchases" || route === "market/confirm") { const mr = await marketRoutes(route, req, db, me, body, mctx(true)); if (mr) return mr; }
   if (!acc.active && !FREE_ROUTES.has(route)) return fail(402, "This feature isn't available in free mode. Upgrade to Premium to use it.");
   const plan = acc.plan || "";
-  const vr = await videoRoutes(route, req, url, db, me, acc.via === "own" && plan.startsWith("coach"), body, aiReady());
+  const vr = await videoRoutes(route, req, url, db, me, (acc.via === "own" || acc.via === "comp") && plan.startsWith("coach"), body, aiReady());
   if (vr) return vr;
   const pr = await photoRoutes(route, db, me, body, acc.active);
   if (pr) return pr;
@@ -554,7 +564,7 @@ async function handle(req: Request, context: Context): Promise<Response> {
 
   /* ----- coach mode ----- */
   if (route.startsWith("coach/")) {
-    const isCoach = acc.via === "own" && plan.startsWith("coach");
+    const isCoach = (acc.via === "own" || acc.via === "comp") && plan.startsWith("coach");
     if (route === "coach/mine") {
       // the client's side: who coaches me, what they see, and our messages
       const rows = await db.sql`SELECT l.coach_id, l.share, u.name, u.email FROM coach_links l JOIN users u ON u.id = l.coach_id WHERE l.client_id = ${me.id}`;
