@@ -130,7 +130,7 @@ s = rep(s, "</style>", (root / "src/ext/ext.css").read_text() + "\n.exlink{borde
 
 head = '''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Rep & Ration is a calorie counter, meal planner and workout app in one: barcode scanning, AI photo logging, adaptive calorie targets, 1,000+ exercises with demos, and menus for every diet and faith. 7-day free trial.">
+<meta name="description" content="Rep & Ration is a calorie counter, meal planner and workout app in one: barcode scanning, AI photo logging, adaptive calorie targets, 1,700+ exercises with demos, and menus for every diet and faith. 7-day free trial.">
 <meta name="theme-color" content="#0B7A5E">
 <link rel="canonical" href="https://repandration.netlify.app/">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -139,10 +139,10 @@ head = '''<!doctype html>
 <meta name="apple-mobile-web-app-title" content="Rep & Ration"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Rep & Ration">
 <meta property="og:title" content="Rep & Ration · Calorie counter, meal planner & workout app">
-<meta property="og:description" content="Train it. Eat it. Track both. Adaptive calorie targets, barcode scanning, AI meal photos, 1,000+ exercises and menus for every diet. 7-day free trial.">
+<meta property="og:description" content="Train it. Eat it. Track both. Adaptive calorie targets, barcode scanning, AI meal photos, 1,700+ exercises and menus for every diet. 7-day free trial.">
 <meta property="og:image" content="https://repandration.netlify.app/og.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/icons/icon-192.png" type="image/png">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Rep & Ration","applicationCategory":"HealthApplication","operatingSystem":"Web, iOS, Android","description":"Calorie counter, meal planner and workout tracker with adaptive calorie targets, barcode scanning, AI photo logging and 1,000+ exercises.","offers":[{"@type":"Offer","price":"15.99","priceCurrency":"USD","name":"Monthly"},{"@type":"Offer","price":"120.00","priceCurrency":"USD","name":"Annual"},{"@type":"Offer","price":"24.99","priceCurrency":"USD","name":"Family"},{"@type":"Offer","price":"29.99","priceCurrency":"USD","name":"Coach"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Rep & Ration","applicationCategory":"HealthApplication","operatingSystem":"Web, iOS, Android","description":"Calorie counter, meal planner and workout tracker with adaptive calorie targets, barcode scanning, AI photo logging and 1,700+ exercises.","offers":[{"@type":"Offer","price":"15.99","priceCurrency":"USD","name":"Monthly"},{"@type":"Offer","price":"120.00","priceCurrency":"USD","name":"Annual"},{"@type":"Offer","price":"24.99","priceCurrency":"USD","name":"Family"},{"@type":"Offer","price":"29.99","priceCurrency":"USD","name":"Coach"}]}</script>
 <script>''' + shim + '''</script>
 '''
 # the source starts with <title>...; everything before the app shell <div class="app"> is head content
