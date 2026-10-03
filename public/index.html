@@ -106,7 +106,7 @@
 <title>Rep &amp; Ration</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Figtree:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="assets/ads/ads.css">
 <style>
 /* Layout: SaaS app shell — fixed left rail on desktop, bottom tab bar on phones; content is a 12-col-ish card grid. */
 :root{
@@ -5186,7 +5186,7 @@ const _today = RENDER.today; RENDER.today = () => {
 @media (max-width:900px){.ghero,.gplans{grid-template-columns:1fr}.gfeat{grid-template-columns:1fr 1fr}}
 @media (max-width:560px){.gfeat{grid-template-columns:1fr}.gnav .ghelp{display:none}.gnav .brand b{white-space:nowrap}.gnav .row{flex-wrap:nowrap;gap:6px}.gnav .row .btn.primary{display:none}.ghero h1{font-size:2.15rem}}
 </style>
-<div class="gate" id="gate" hidden><div class="gwrap" id="gateBody"></div></div>
+<div class="gate" id="gate" hidden><div class="gwrap" id="gateBody"></div></div><script src="assets/ads/ads.js"></script>
 <script>
 (function(){
   const $g = s => document.querySelector(s);
@@ -5267,13 +5267,13 @@ const _today = RENDER.today; RENDER.today = () => {
           <div class="tile">${ic("cart")}<div><b>Groceries for the week</b><small>About $64 for 2 people</small></div></div></div></div>
       <div class="gsec"><h2>Everything in one membership</h2><p>No separate calorie counter, workout app and meal planner. It's all here, and it all works together.</p>
         <div class="gfeat">${feats.map(f => `<div class="card">${ic(f[0])}<h3>${f[1]}</h3><p class="small muted">${f[2]}</p></div>`).join("")}</div>
-        <div class="gwho">${["Weight loss","Muscle gain","Keto & low-carb","Vegan & vegetarian","Food allergies","Halal","Kosher","Daniel Fast","Ramadan","Lent","Truckers","Night shift","Families","Personal trainers","Busy parents","On a budget"].map(x => `<span>${x}</span>`).join("")}</div></div>
+        <div class="gwho">${["Weight loss","Muscle gain","Keto & low-carb","Vegan & vegetarian","Food allergies","Halal","Kosher","Daniel Fast","Ramadan","Lent","Truckers","Night shift","Families","Personal trainers","Busy parents","On a budget"].map(x => `<span>${x}</span>`).join("")}</div></div><div class="adx">${window.RR_ADS ? window.RR_ADS.render() : ""}</div>
       <div class="gsec" id="gPlans"><h2>Simple pricing</h2><p>Use the free plan as long as you like. Premium plans start with 7 days free.</p>${freeCard()}${plansHTML(false)}</div>
       <div id="gForm">${form(gmode)}</div>${foot}`;
   }
   function show(view, u){
     const g = $g("#gate"), b = $g("#gateBody"); g.hidden = false;
-    if (view === "landing") b.innerHTML = landing();
+    if (view === "landing") { b.innerHTML = landing(); if (window.RR_ADS) window.RR_ADS.init(b); }
     else if (view === "reset") b.innerHTML = `<div class="gnav">${logo}</div>${form("reset")}${foot}`;
     else b.innerHTML = `<div class="gnav">${logo}<button class="btn sm" data-glogout>Log out</button></div>
       <div class="gsec"><h2>${u.sub.canTrial ? "Pick a plan to start your free trial" : "Welcome back. Pick a plan to reactivate"}</h2><p>${u.sub.canTrial ? "Nothing is charged today. After 7 days your card is billed for the plan you choose. Cancel any time before then and you pay nothing." : "Your subscription isn't active. Choose a plan to get back to your plan, logs and groups."}</p>
