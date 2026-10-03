@@ -31,9 +31,9 @@ function addWger(list){
     const cat = String(w.cat || "").toLowerCase(), prim = w.pm || [];
     const pattern = cat === "arms" ? (prim.includes("triceps") ? "push" : "pull") : (WG_CAT[cat] || (prim.some(m => ["quadriceps","hamstrings","glutes","calves"].includes(m)) ? "lower" : "core"));
     const loaded = (w.e || []).some(q => ["barbell","dumbbells","kettlebell","cable","machine","ezbar"].includes(q));
-    const sentences = (w.d || "").split(/(?<=[.!?])\s+/).filter(x => x.length > 3);
+    const sentences = (w.d || "").replace(/\.b\b/g, ".").split(/(?<=[.!?])\s+/).filter(x => x.length > 3);
     const e = {id:w.id, name:w.n, impact: cat === "cardio" ? 2 : 1, pattern, equip:w.e || [], metric: cat === "cardio" ? "time" : "reps", loaded, muscles: [...prim, ...(w.sm || [])].slice(0, 3).map(m => m[0].toUpperCase() + m.slice(1)).join(" · ") || w.cat,
-      dose: cat === "cardio" ? 300 : loaded ? 10 : 12, cue: sentences[0] || "", level:"b", cat: cat === "cardio" ? "cardio" : "strength", ins: sentences.slice(0, 8), gen:false, compound:false, prim, wimg: w.img, vid: vids, x:true, wger:true};
+      dose: cat === "cardio" ? 300 : loaded ? 10 : 12, cue: sentences[0] || "", level:"b", cat: cat === "cardio" ? "cardio" : "strength", ins: sentences.slice(0, 8), gen:false, compound:false, prim, wimg: w.img, vid: vids.length ? vids : null, x:true, wger:true};
     EXS.push(e); EX[e.id] = e; byName.set(normName(e.name), e);
   }
 }
@@ -115,7 +115,8 @@ function libList(p){
     && (lib2.equip === "all" || (lib2.equip === "mine" ? exAvailable(e, p.equipment) : lib2.equip === "none" ? !e.equip.length : e.equip.includes(lib2.equip)))
     && (lib2.level === "all" || (e.level || "b") === lib2.level)
     && (lib2.cat === "all" || (e.cat || "home") === lib2.cat)
-    && (!words.length || words.every(w => (e.name + " " + e.muscles + " " + (e.cat||"")).toLowerCase().includes(w))));
+    && (!words.length || words.every(w => (e.name + " " + e.muscles + " " + (e.cat||"")).toLowerCase().includes(w))))
+    .map((e, i) => [e, (e.vid ? 0 : e.img || (e.wimg && e.wimg.length) ? 1 : 2), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
 }
 function exThumb(e){
   if (e.img) return `<span class="exthumb"><img src="${exImg(e,0)}" alt="" loading="lazy"><img src="${exImg(e,1)}" alt="" loading="lazy">${e.vid ? `<span class="vbadge">${ICON.play} Video</span>` : ""}</span>`;
