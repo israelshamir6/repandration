@@ -57,8 +57,8 @@ const fam = {list:null, err:""};
 async function famLoad(){ try { fam.list = (await api("family/list")).members; } catch (e){ fam.err = e.message; } if (ui.view === "profile" && !isTyping()) render(); }
 function rrAccountCard(){
   const u = me(), st = u.sub.status, d = t => t ? new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "";
-  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : u.sub.via === "fleet" ? `Premium · covered by ${esc(u.sub.fleetCompany)}` : u.sub.active || u.sub.status !== "none" ? planLine(u.sub.legacy ? null : u.sub.ownPlan) : "Free";
-  const line = u.sub.via === "family" || u.sub.via === "fleet" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
+  const plan = u.sub.via === "family" ? `Family plan · covered by ${esc(u.sub.familyOwner)}` : u.sub.via === "fleet" ? `Premium · covered by ${esc(u.sub.fleetCompany)}` : u.sub.via === "comp" ? "Premium · complimentary (owner account)" : u.sub.active || u.sub.status !== "none" ? planLine(u.sub.legacy ? null : u.sub.ownPlan) : "Free";
+  const line = u.sub.via === "family" || u.sub.via === "fleet" || u.sub.via === "comp" ? "Active" : st === "trialing" ? `Free trial · first charge ${d(u.sub.trialEnd)}` : st === "active" ? `Active · renews ${d(u.sub.periodEnd)}` : st === "past_due" ? "Payment failed · update your card to keep access" : "No active plan";
   if (u.family && fam.list === null){ fam.list = []; famLoad(); }
   return `<section class="card stack"><h2>Account & billing</h2>
     <div class="kv"><span>Email</span><span>${esc(u.email)}</span></div><div class="kv"><span>Plan</span><span>${plan}</span></div><div class="kv"><span>Status</span><span>${esc(line)}</span></div>

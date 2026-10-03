@@ -43,6 +43,9 @@ function readCookie(req: Request, name: string) {
 async function access(db: any, u: any): Promise<{ active: boolean; via?: string; plan?: string; owner?: string }> {
   if (!u || !Netlify.env.get("STRIPE_SECRET_KEY")) return { active: false };
   if (ACTIVE.includes(u.sub_status || "")) return { active: true, via: "own", plan: u.plan || "individual_month" };
+  // complimentary Premium for the owner's own account(s): the support address plus any listed in COMP_EMAILS
+  const comp = ["repandration27@gmail.com", ...String(Netlify.env.get("COMP_EMAILS") || "").toLowerCase().split(/[\s,;]+/)].filter(Boolean);
+  if (comp.includes(String(u.email || "").toLowerCase())) return { active: true, via: "comp", plan: "individual_year", owner: "Rep & Ration" };
   const [f] = await db.sql`SELECT o.name, o.email, o.plan FROM family_members m JOIN users o ON o.id = m.owner_id
     WHERE m.email = ${u.email} AND o.sub_status IN ('trialing','active','past_due') AND o.plan LIKE 'family%' LIMIT 1`;
   if (f) return { active: true, via: "family", plan: f.plan, owner: f.name || f.email };
