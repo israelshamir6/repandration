@@ -51,7 +51,7 @@
     coach_unlimited_month:{n:"Coach Unlimited", price:"$49.99", per:"month", note:"Unlimited clients"},
     fleet_month:{n:"Fleet & company", price:"$10", per:"seat/month", note:"20-seat minimum · $8/seat for 51+"}
   };
-  let annual = true, plan = "individual_year", gmode = "signup", freeSignup = true;
+  let annual = true, plan = "individual_year", gmode = "signup", freeSignup = true, fleetInfo = {};
   try { const q = new URLSearchParams(location.search).get("plan"); if (q && P[q]) plan = q; } catch {}
   const ic = n => `<span class="qi">${(typeof ICON !== "undefined" && ICON[n]) || ""}</span>`;
   const form = mode => {
@@ -59,8 +59,8 @@
     if (mode === "signup") return `<form class="card stack gform" data-gate="signup"><h2>${freeSignup ? "Create your free account" : "Start your 7-day Premium trial"}</h2>
       ${freeSignup ? `<p class="small muted">Free forever: log food, log workouts, follow your meal plan, track progress and join buddies. No card needed. Upgrade to Premium any time.</p>` : `<div class="row" style="justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:10px 12px"><span><b>${pl.n}</b><br><small class="muted">${pl.note}</small></span><span><b>${pl.price}</b><small class="muted">/${pl.per}</small></span></div>
       <p class="small muted">Next you'll add a card with Stripe. Nothing is charged today. After 7 days your card is billed ${pl.price}, then every ${pl.per}. Cancel any time before the trial ends and you won't be charged.</p>`}
-      ${plan === "fleet_month" && !freeSignup ? `<label class="f">Company name<input id="gCo" type="text" autocomplete="organization" maxlength="80" required></label>
-      <label class="f">Number of seats (20 minimum)<input id="gSeats" type="number" min="20" max="5000" value="20" required></label><p class="small muted" id="gSeatTotal">20 seats × $10 = $200/month. Your own access is included.</p>` : ""}
+      ${plan === "fleet_month" && !freeSignup ? `<label class="f">Company name<input id="gCo" type="text" autocomplete="organization" maxlength="80" required value="${(fleetInfo.company || "").replace(/"/g, "&quot;")}"></label>
+      <label class="f">Number of seats (20 minimum)<input id="gSeats" type="number" min="20" max="5000" value="${fleetInfo.seats || 20}" required></label><p class="small muted" id="gSeatTotal">${(() => { const n = fleetInfo.seats || 20, u = n > 50 ? 8 : 10; return `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; })()}</p>` : ""}
       <label class="f">First name<input id="gName" type="text" autocomplete="given-name" maxlength="40"></label>
       <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
       <label class="f">Password (8+ characters)<input id="gPw" type="password" autocomplete="new-password" minlength="8" required></label>
@@ -83,12 +83,15 @@
       ${k2 ? `<p class="small">or <b>${P[k2].price}/${P[k2].per}</b> · ${P[k2].note}</p>` : ""}
       <ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>
       <button class="btn ${best ? "primary" : ""}" data-gplan="${k}">${pick ? "Choose" : "Start free trial"}</button>${k2 ? `<button class="btn sm ghost" data-gplan="${k2}">${pick ? "Choose" : "Start"} ${P[k2].n}</button>` : ""}</div>`;
-    return `<div class="gtoggle"><div class="seg"><button data-gannual="0" aria-pressed="${!annual}">Monthly</button><button data-gannual="1" aria-pressed="${annual}">Annual · save up to 37%</button></div></div>
+    const fleetCard = `<div class="card gplan gfleet"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:14px;align-items:flex-start"><div style="flex:1;min-width:240px"><span class="pill low" style="align-self:flex-start">For trucking fleets &amp; companies</span><h3 style="margin-top:8px">Fleet &amp; company wellness</h3><p class="small muted">Give every driver or employee full Premium: truck-stop meal plans, DOT physical prep, sleep, workouts and food logging. Each person has a private account; you see who joined and who's active, never their health data. Coach tools not included.</p></div>
+        <div class="stack" style="min-width:230px;flex:0 1 280px"><div><span class="big" style="font-size:2rem">$10</span><span class="muted">/seat/month</span><p class="small muted" style="margin:2px 0 0">20-seat minimum · <b>$8/seat</b> for 51 or more</p></div>
+          <input id="gfCo" type="text" placeholder="Company name" maxlength="80" autocomplete="organization" value="${fleetInfo.company ? fleetInfo.company.replace(/"/g, "&quot;") : ""}" aria-label="Company name">
+          <div class="row" style="gap:8px"><input id="gfSeats" type="number" min="20" max="5000" value="${fleetInfo.seats || 20}" style="width:100px" aria-label="Number of seats"><span class="small muted" id="gfTotal">${(() => { const n = fleetInfo.seats || 20; return `${n} seats × $${n > 50 ? 8 : 10} = $${(n*(n > 50 ? 8 : 10)).toLocaleString()}/mo`; })()}</span></div>
+          <button class="btn primary" data-gplan="fleet_month">${pick ? "Start fleet plan" : "Set up my fleet"}</button></div></div></div>`;
+    return `${fleetCard}<div class="gtoggle"><div class="seg"><button data-gannual="0" aria-pressed="${!annual}">Monthly</button><button data-gannual="1" aria-pressed="${annual}">Annual · save up to 37%</button></div></div>
       <div class="gplans">${card(ind, "Just you", true, ["Adaptive calorie & macro targets","Barcode, photo & voice food logging","Meal plans for every diet & faith","1,700+ exercises with demos","Buddies, reminders, progress"])}
       ${card(fam, "Family", false, ["Everything in Rep & Ration","You plus 4 people, each with their own account","Meal prep & groceries scaled for the household","One bill"])}
       ${card("coach_month", "Coach", false, ["Your own full membership","Client dashboard: meals, macros, workouts, weight","Message clients in the app","Clients keep their own membership"], "coach_unlimited_month")}</div>
-      <div class="card gplan gfleet"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:12px"><div style="flex:1;min-width:240px"><h3>Fleets & companies</h3><p class="small muted">Give your drivers or employees full Premium: meal plans, logging, workouts, DOT physical prep, sleep and fasting. Each person has a private account; you see who joined and who's active, never their health data. Coach tools not included.</p></div>
-        <div style="text-align:right"><span class="big" style="font-size:2rem">$10</span><span class="muted">/seat/month</span><p class="small muted">20-seat minimum · <b>$8/seat</b> for 51+</p><button class="btn" data-gplan="fleet_month">${pick ? "Choose" : "Set up a fleet"}</button></div></div></div>
       <p class="small muted" style="text-align:center;margin-top:10px">7 days free on any plan · card required · cancel any time before day 8 and you pay nothing</p>`;
   };
   const freeCard = () => `<div class="card row" style="margin-top:20px;justify-content:space-between"><div style="flex:1;min-width:220px"><h3>Free</h3><p class="small muted">Log food by search, log workouts, follow your meal plan, track progress and join buddies. No card, no time limit.</p></div><div class="row"><span class="big" style="font-size:2rem">$0</span><button class="btn" data-gfree>Start free</button></div></div>`;
@@ -128,9 +131,8 @@
       <p class="small muted" style="text-align:center">Payments are handled securely by Stripe. Added to a family plan? Make sure you signed up with the email the plan owner added.</p>${foot}`;
   }
   const err = m => { const e = $g("#gErr"); if (e) e.textContent = m; };
-  let fleetInfo = {};
   async function checkout(){ try { const j = await RR_API("billing/checkout", Object.assign({plan}, plan === "fleet_month" ? fleetInfo : {})); location.href = j.url; } catch (e){ err(e.message); } }
-  document.addEventListener("input", e => { if (e.target.id === "gSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gSeatTotal"); if (t) t.textContent = n < 20 ? "Fleet plans start at 20 seats." : `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; } });
+  document.addEventListener("input", e => { if (e.target.id === "gfSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gfTotal"); if (t) t.textContent = n < 20 ? "20-seat minimum" : `${n} seats × $${u} = $${(n*u).toLocaleString()}/mo`; } if (e.target.id === "gSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gSeatTotal"); if (t) t.textContent = n < 20 ? "Fleet plans start at 20 seats." : `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; } });
   let mode = "landing";
   document.addEventListener("click", async e => {
     if (!e.target.closest("#gate")) return;
@@ -138,6 +140,8 @@
     if (e.target.closest("[data-gfree]")){ freeSignup = true; gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); return; }
     if (e.target.closest("[data-gscroll]")){ const t = $g("#gPlans"); if (t) t.scrollIntoView({behavior:"smooth"}); return; }
     const a = e.target.closest("[data-gannual]"); if (a){ annual = a.dataset.gannual === "1"; plan = annual ? plan.replace("_month", "_year").replace("coach_year", "coach_month").replace("coach_unlimited_year", "coach_unlimited_month").replace("fleet_year", "fleet_month") : plan.replace("_year", "_month"); if (mode === "paywall") show("paywall", window.RR_USER); else { const y = scrollY; show("landing"); scrollTo(0, y); } return; }
+    const fp = e.target.closest("[data-gplan]"); if (fp && fp.dataset.gplan === "fleet_month"){ const co = ($g("#gfCo") || {}).value || "", n = Math.round(+($g("#gfSeats") || {}).value || 0);
+      if (co.trim().length < 2){ alert("Enter your company name."); return; } if (!(n >= 20)){ alert("Fleet plans start at 20 seats."); return; } fleetInfo = {company: co.trim(), seats: n}; }
     const p = e.target.closest("[data-gplan]"); if (p){ plan = p.dataset.gplan; freeSignup = false; if (mode === "paywall"){ p.disabled = true; return checkout(); } gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { const n = $g("#gName"); if (n) n.focus({preventScroll:true}); }, 400); return; }
     if (e.target.closest("[data-glogout]")) { await RR_API("auth/logout", {}).catch(() => {}); location.href = "/"; }
   });

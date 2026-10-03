@@ -19,10 +19,11 @@ SHEETS.plans = () => {
       <p class="small muted">${p.blurb}${p.per === "year" ? ` · ${money(p.price/12)}/month` : ""}</p>
       ${on ? `<span class="small" style="color:var(--good);font-weight:700">Your plan</span>` : `<button class="btn sm ${p.save ? "primary" : ""}" data-act="pickPlan" data-p="${k}">${active ? "Switch to this" : "Choose"}</button>`}</div>`; };
   return {title:"Plans", wide:true, body:`<div class="stack">${u && u.sub.legacy ? `<p class="small">You're on the founding price of $12.99/month. Switching moves you to the plan you pick.</p>` : ""}
+    <span class="eyebrow">Trucking fleets & companies</span>${fleetPlanCard(active && cur === "fleet_month")}
     <span class="eyebrow">Just you</span><div class="grid g-2">${card("individual_month")}${card("individual_year")}</div>
     <span class="eyebrow">Your household</span><div class="grid g-2">${card("family_month")}${card("family_year")}</div>
     <span class="eyebrow">Trainers & coaches</span><div class="grid g-2">${card("coach_month")}${card("coach_unlimited_month")}</div>
-    <span class="eyebrow">Companies & fleets</span>${fleetPlanCard(active && cur === "fleet_month")}
+
     <p class="small muted">${active ? "Switching takes effect now. Stripe credits the unused part of your current plan toward the new one." : "Every plan starts with a 7-day free trial if you haven't had one. Cancel any time."}</p></div>`};
 };
 A.openPlans = () => openSheet("plans");

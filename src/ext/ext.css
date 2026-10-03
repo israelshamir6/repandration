@@ -202,3 +202,7 @@ form.row .btn{min-height:42px}
 textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical;box-sizing:border-box}
 @media (max-width:640px){.mkgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mkcard{padding:8px}}
 a.btn{text-decoration:none;color:var(--ink)}a.btn.primary{color:var(--accent-ink)}
+.drvdot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.drvdot>div{display:flex;flex-direction:column}
+.drvdot.soon{background:color-mix(in srgb,var(--warn) 18%,transparent)}
+.drvsetup{gap:10px}

@@ -575,6 +575,10 @@ form.row .btn{min-height:42px}
 textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical;box-sizing:border-box}
 @media (max-width:640px){.mkgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mkcard{padding:8px}}
 a.btn{text-decoration:none;color:var(--ink)}a.btn.primary{color:var(--accent-ink)}
+.drvdot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.drvdot>div{display:flex;flex-direction:column}
+.drvdot.soon{background:color-mix(in srgb,var(--warn) 18%,transparent)}
+.drvsetup{gap:10px}
 
 .exlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}.exlink:hover{color:var(--accent-strong);text-decoration:underline}
 </style>
@@ -3781,72 +3785,72 @@ SOURCES.world = {name:"Rep & Ration World Kitchen", short:"World Kitchen", url:"
 const W = (id, slot, cuisine, name, items, steps) => { const t = T(id, slot, "world", name, items, steps); t.cuisine = cuisine; TEMPLATES.push(t); };
 
 /* ---------- breakfast ---------- */
-W("w1","Breakfast","Mexican","Sunrise Huevos Rancheros",[["egg",2],["corntort",2],["blackbeans",0.5],["salsa",2],["avocado",0.5]],["Warm the tortillas and beans.","Fry or poach the eggs.","Stack tortillas, beans and eggs; top with salsa and avocado."]);
-W("w2","Breakfast","Israeli & North African","Red Pepper Shakshuka Skillet",[["egg",2],["tomato",1.5],["pepper",1],["onion",0.5],["oil",0.5],["pita",1]],["Soften onion and pepper in the oil; add chopped tomato with cumin and paprika and simmer 8 minutes.","Make two wells, crack in the eggs, cover and cook until the whites set.","Serve with warm pita."]);
-W("w3","Breakfast","Japanese","Tokyo Morning Tray",[["salmon",0.75],["whiterice",0.75],["miso",1],["spinach",1],["egg",1]],["Broil the salmon 6–8 minutes.","Whisk miso into 1 cup hot water with the spinach for a quick soup.","Serve with rice and a soft-boiled egg."]);
-W("w4","Breakfast","Turkish","Istanbul Breakfast Plate",[["egg",2],["feta",1],["cucumber",1],["tomato",1],["olives",0.5],["pita",1]],["Boil the eggs 8 minutes.","Slice cucumber and tomato; arrange with feta, olives and pita."]);
-W("w5","Breakfast","Indian","Masala Morning Scramble",[["egg",3],["onion",0.25],["tomato",0.5],["spinach",1],["oil",0.5],["roti",1]],["Cook onion in the oil with turmeric, cumin and a pinch of chili.","Add tomato and spinach, then the beaten eggs; scramble soft.","Serve with roti."]);
-W("w6","Breakfast","Scandinavian","Nordic Skyr Bowl",[["skyr",1],["blueberries",0.5],["oats",0.5],["flax",1],["honey",0.5]],["Toast the oats in a dry pan for 3 minutes.","Top skyr with berries, oats, flax and a drizzle of honey."]);
-W("w7","Breakfast","Colombian","Bogotá Arepa-Style Egg Stack",[["corntort",2],["egg",2],["cheddar",0.5],["avocado",0.5],["tomato",0.5]],["Crisp the corn tortillas in a dry pan.","Scramble eggs with tomato; pile onto the tortillas with cheese and avocado."]);
-W("w8","Breakfast","Chinese","Ginger Congee Comfort Bowl",[["whiterice",1],["chickthigh",0.75],["bonebroth",1],["spinach",1],["egg",1],["soysauce",0.5]],["Simmer the rice in broth and 1 cup water with sliced ginger for 20 minutes, stirring, until creamy.","Stir in shredded chicken and spinach.","Top with a soft-boiled egg and a splash of soy sauce."]);
-W("w9","Breakfast","Ethiopian","Addis Spiced Lentil Breakfast",[["lentils",1],["egg",1],["tomato",0.5],["onion",0.25],["oil",0.5],["injera",1]],["Cook onion in oil with berbere or paprika and cumin.","Add lentils and tomato; simmer 5 minutes.","Serve with a boiled egg and injera."]);
-W("w10","Breakfast","Brazilian","Rio Açaí-Style Power Bowl",[["frozberries",1],["banana",0.5],["yogurt",0.5],["granola",0.5],["chia",1]],["Blend the frozen berries, half the banana and the yogurt until thick.","Top with granola, chia and the remaining banana."]);
+W("wk1","Breakfast","Mexican","Sunrise Huevos Rancheros",[["egg",2],["corntort",2],["blackbeans",0.5],["salsa",2],["avocado",0.5]],["Warm the tortillas and beans.","Fry or poach the eggs.","Stack tortillas, beans and eggs; top with salsa and avocado."]);
+W("wk2","Breakfast","Israeli & North African","Red Pepper Shakshuka Skillet",[["egg",2],["tomato",1.5],["pepper",1],["onion",0.5],["oil",0.5],["pita",1]],["Soften onion and pepper in the oil; add chopped tomato with cumin and paprika and simmer 8 minutes.","Make two wells, crack in the eggs, cover and cook until the whites set.","Serve with warm pita."]);
+W("wk3","Breakfast","Japanese","Tokyo Morning Tray",[["salmon",0.75],["whiterice",0.75],["miso",1],["spinach",1],["egg",1]],["Broil the salmon 6–8 minutes.","Whisk miso into 1 cup hot water with the spinach for a quick soup.","Serve with rice and a soft-boiled egg."]);
+W("wk4","Breakfast","Turkish","Istanbul Breakfast Plate",[["egg",2],["feta",1],["cucumber",1],["tomato",1],["olives",0.5],["pita",1]],["Boil the eggs 8 minutes.","Slice cucumber and tomato; arrange with feta, olives and pita."]);
+W("wk5","Breakfast","Indian","Masala Morning Scramble",[["egg",3],["onion",0.25],["tomato",0.5],["spinach",1],["oil",0.5],["roti",1]],["Cook onion in the oil with turmeric, cumin and a pinch of chili.","Add tomato and spinach, then the beaten eggs; scramble soft.","Serve with roti."]);
+W("wk6","Breakfast","Scandinavian","Nordic Skyr Bowl",[["skyr",1],["blueberries",0.5],["oats",0.5],["flax",1],["honey",0.5]],["Toast the oats in a dry pan for 3 minutes.","Top skyr with berries, oats, flax and a drizzle of honey."]);
+W("wk7","Breakfast","Colombian","Bogotá Arepa-Style Egg Stack",[["corntort",2],["egg",2],["cheddar",0.5],["avocado",0.5],["tomato",0.5]],["Crisp the corn tortillas in a dry pan.","Scramble eggs with tomato; pile onto the tortillas with cheese and avocado."]);
+W("wk8","Breakfast","Chinese","Ginger Congee Comfort Bowl",[["whiterice",1],["chickthigh",0.75],["bonebroth",1],["spinach",1],["egg",1],["soysauce",0.5]],["Simmer the rice in broth and 1 cup water with sliced ginger for 20 minutes, stirring, until creamy.","Stir in shredded chicken and spinach.","Top with a soft-boiled egg and a splash of soy sauce."]);
+W("wk9","Breakfast","Ethiopian","Addis Spiced Lentil Breakfast",[["lentils",1],["egg",1],["tomato",0.5],["onion",0.25],["oil",0.5],["injera",1]],["Cook onion in oil with berbere or paprika and cumin.","Add lentils and tomato; simmer 5 minutes.","Serve with a boiled egg and injera."]);
+W("wk10","Breakfast","Brazilian","Rio Açaí-Style Power Bowl",[["frozberries",1],["banana",0.5],["yogurt",0.5],["granola",0.5],["chia",1]],["Blend the frozen berries, half the banana and the yogurt until thick.","Top with granola, chia and the remaining banana."]);
 
 /* ---------- lunch ---------- */
-W("w11","Lunch","Korean","Seoul Bowl",[["beef95",1],["brownrice",1],["spinach",1],["carrots",0.5],["egg",1],["kimchi",1],["gochujang",0.5]],["Brown the beef with garlic and a splash of soy.","Sauté spinach and carrots separately.","Arrange over rice; top with a fried egg, kimchi and gochujang."]);
-W("w12","Lunch","Vietnamese","Saigon Summer Rolls",[["shrimp",1],["ricepaper",1],["ricenoodles",0.5],["cucumber",1],["carrots",0.5],["pb",0.5],["lime",0.5]],["Dip each rice paper in warm water for a few seconds.","Fill with shrimp, noodles, cucumber, carrots and herbs; roll tight.","Dip in peanut butter thinned with lime juice and warm water."]);
-W("w13","Lunch","Greek","Athens Chicken Gyro Bowl",[["chicken",1],["brownrice",0.75],["cucumber",1],["tomato",1],["tzatziki",2],["feta",0.5]],["Season chicken with oregano, lemon and garlic; grill and slice.","Build bowls with rice, cucumber and tomato.","Top with tzatziki and feta."]);
-W("w14","Lunch","Lebanese","Beirut Bulgur Tabbouleh Plate",[["bulgur",1],["chickpeas",0.5],["tomato",1],["cucumber",1],["oil",0.75],["hummus",2]],["Toss bulgur with chopped tomato, cucumber, lots of parsley and mint, lemon and the oil.","Serve with chickpeas and hummus."]);
-W("w15","Lunch","Thai","Bangkok Larb Lettuce Cups",[["groundchicken",1],["romaine",1],["whiterice",0.5],["lime",1],["fishsauce",0.5],["onion",0.25]],["Cook the chicken, breaking it up, with sliced shallot or onion.","Off heat, add lime juice, fish sauce, chili and mint.","Spoon into lettuce leaves; serve with rice."]);
-W("w16","Lunch","Peruvian","Lima Quinoa Chicken Salad",[["chicken",1],["quinoa",1],["corn",0.5],["pepper",0.5],["avocado",0.5],["lime",1]],["Toss quinoa with corn, pepper, lime juice and cilantro.","Top with sliced chicken and avocado."]);
-W("w17","Lunch","Japanese","Kyoto Soba Salad",[["sobanoodles",1.5],["edamame",0.5],["cucumber",1],["carrots",0.5],["soysauce",1],["tofu",0.5]],["Cook and rinse the soba under cold water.","Toss with edamame, cucumber, carrots, tofu, soy sauce and a little rice vinegar."]);
-W("w18","Lunch","Italian","Tuscan Bean & Tuna Toss",[["tuna",1],["kidneybeans",0.5],["cherrytom",1],["greens",1],["oil",0.75],["sourdough",1]],["Toss tuna, beans, tomatoes and greens with the oil, lemon and black pepper.","Serve with toasted sourdough."]);
-W("w19","Lunch","Indian","Mumbai Chana Wrap",[["chickpeas",1],["roti",1],["yogurt",0.5],["cucumber",0.5],["onion",0.25],["spinach",1]],["Warm chickpeas with garam masala, cumin and a little onion; mash lightly.","Fill the roti with chickpeas and spinach.","Add yogurt mixed with grated cucumber and mint."]);
-W("w20","Lunch","Mexican","Oaxaca Chicken Tinga Tacos",[["chicken",1],["corntort",3],["tomato",1],["onion",0.25],["cabbage",1],["lime",0.5]],["Simmer shredded chicken with tomato, onion and chipotle 10 minutes.","Serve in warm tortillas with shredded cabbage and lime."]);
-W("w21","Lunch","Moroccan","Marrakesh Couscous Power Bowl",[["couscous",1],["chickpeas",0.5],["chicken",0.75],["carrots",0.5],["raisins",0.5],["oil",0.5]],["Roast carrots and chickpeas with cumin, cinnamon and the oil.","Toss with couscous, raisins and sliced chicken."]);
-W("w22","Lunch","Hawaiian","Island Ahi Poke Bowl",[["tuna",1],["brownrice",1],["edamame",0.5],["cucumber",1],["avocado",0.5],["soysauce",1]],["Cube sushi-grade tuna and toss with soy sauce, sesame and green onion. (Or use canned tuna.)","Serve over rice with edamame, cucumber and avocado."]);
-W("w23","Lunch","Spanish","Valencia Shrimp & Rice Skillet",[["shrimp",1],["brownrice",1],["peas",0.5],["pepper",0.5],["tomato",0.5],["oil",0.5]],["Cook pepper and tomato in the oil with paprika and a pinch of saffron or turmeric.","Stir in rice and peas, then nestle the shrimp on top; cover 5 minutes."]);
-W("w24","Lunch","Filipino","Manila Chicken Adobo Bowl",[["chickthigh",1],["whiterice",1],["greenbeans",1],["soysauce",1]],["Simmer chicken in soy sauce, vinegar, garlic, bay leaf and pepper 20 minutes.","Serve over rice with steamed green beans."]);
-W("w25","Lunch","Jamaican","Kingston Jerk Chicken Plate",[["chicken",1],["brownrice",0.75],["kidneybeans",0.5],["cabbage",1],["pineapple",0.5]],["Rub chicken with jerk seasoning (allspice, thyme, chili, garlic) and grill.","Serve with rice and beans, slaw and pineapple."]);
+W("wk11","Lunch","Korean","Seoul Bowl",[["beef95",1],["brownrice",1],["spinach",1],["carrots",0.5],["egg",1],["kimchi",1],["gochujang",0.5]],["Brown the beef with garlic and a splash of soy.","Sauté spinach and carrots separately.","Arrange over rice; top with a fried egg, kimchi and gochujang."]);
+W("wk12","Lunch","Vietnamese","Saigon Summer Rolls",[["shrimp",1],["ricepaper",1],["ricenoodles",0.5],["cucumber",1],["carrots",0.5],["pb",0.5],["lime",0.5]],["Dip each rice paper in warm water for a few seconds.","Fill with shrimp, noodles, cucumber, carrots and herbs; roll tight.","Dip in peanut butter thinned with lime juice and warm water."]);
+W("wk13","Lunch","Greek","Athens Chicken Gyro Bowl",[["chicken",1],["brownrice",0.75],["cucumber",1],["tomato",1],["tzatziki",2],["feta",0.5]],["Season chicken with oregano, lemon and garlic; grill and slice.","Build bowls with rice, cucumber and tomato.","Top with tzatziki and feta."]);
+W("wk14","Lunch","Lebanese","Beirut Bulgur Tabbouleh Plate",[["bulgur",1],["chickpeas",0.5],["tomato",1],["cucumber",1],["oil",0.75],["hummus",2]],["Toss bulgur with chopped tomato, cucumber, lots of parsley and mint, lemon and the oil.","Serve with chickpeas and hummus."]);
+W("wk15","Lunch","Thai","Bangkok Larb Lettuce Cups",[["groundchicken",1],["romaine",1],["whiterice",0.5],["lime",1],["fishsauce",0.5],["onion",0.25]],["Cook the chicken, breaking it up, with sliced shallot or onion.","Off heat, add lime juice, fish sauce, chili and mint.","Spoon into lettuce leaves; serve with rice."]);
+W("wk16","Lunch","Peruvian","Lima Quinoa Chicken Salad",[["chicken",1],["quinoa",1],["corn",0.5],["pepper",0.5],["avocado",0.5],["lime",1]],["Toss quinoa with corn, pepper, lime juice and cilantro.","Top with sliced chicken and avocado."]);
+W("wk17","Lunch","Japanese","Kyoto Soba Salad",[["sobanoodles",1.5],["edamame",0.5],["cucumber",1],["carrots",0.5],["soysauce",1],["tofu",0.5]],["Cook and rinse the soba under cold water.","Toss with edamame, cucumber, carrots, tofu, soy sauce and a little rice vinegar."]);
+W("wk18","Lunch","Italian","Tuscan Bean & Tuna Toss",[["tuna",1],["kidneybeans",0.5],["cherrytom",1],["greens",1],["oil",0.75],["sourdough",1]],["Toss tuna, beans, tomatoes and greens with the oil, lemon and black pepper.","Serve with toasted sourdough."]);
+W("wk19","Lunch","Indian","Mumbai Chana Wrap",[["chickpeas",1],["roti",1],["yogurt",0.5],["cucumber",0.5],["onion",0.25],["spinach",1]],["Warm chickpeas with garam masala, cumin and a little onion; mash lightly.","Fill the roti with chickpeas and spinach.","Add yogurt mixed with grated cucumber and mint."]);
+W("wk20","Lunch","Mexican","Oaxaca Chicken Tinga Tacos",[["chicken",1],["corntort",3],["tomato",1],["onion",0.25],["cabbage",1],["lime",0.5]],["Simmer shredded chicken with tomato, onion and chipotle 10 minutes.","Serve in warm tortillas with shredded cabbage and lime."]);
+W("wk21","Lunch","Moroccan","Marrakesh Couscous Power Bowl",[["couscous",1],["chickpeas",0.5],["chicken",0.75],["carrots",0.5],["raisins",0.5],["oil",0.5]],["Roast carrots and chickpeas with cumin, cinnamon and the oil.","Toss with couscous, raisins and sliced chicken."]);
+W("wk22","Lunch","Hawaiian","Island Ahi Poke Bowl",[["tuna",1],["brownrice",1],["edamame",0.5],["cucumber",1],["avocado",0.5],["soysauce",1]],["Cube sushi-grade tuna and toss with soy sauce, sesame and green onion. (Or use canned tuna.)","Serve over rice with edamame, cucumber and avocado."]);
+W("wk23","Lunch","Spanish","Valencia Shrimp & Rice Skillet",[["shrimp",1],["brownrice",1],["peas",0.5],["pepper",0.5],["tomato",0.5],["oil",0.5]],["Cook pepper and tomato in the oil with paprika and a pinch of saffron or turmeric.","Stir in rice and peas, then nestle the shrimp on top; cover 5 minutes."]);
+W("wk24","Lunch","Filipino","Manila Chicken Adobo Bowl",[["chickthigh",1],["whiterice",1],["greenbeans",1],["soysauce",1]],["Simmer chicken in soy sauce, vinegar, garlic, bay leaf and pepper 20 minutes.","Serve over rice with steamed green beans."]);
+W("wk25","Lunch","Jamaican","Kingston Jerk Chicken Plate",[["chicken",1],["brownrice",0.75],["kidneybeans",0.5],["cabbage",1],["pineapple",0.5]],["Rub chicken with jerk seasoning (allspice, thyme, chili, garlic) and grill.","Serve with rice and beans, slaw and pineapple."]);
 
 /* ---------- dinner ---------- */
-W("w26","Dinner","Indian","Delhi Butter-Light Chicken",[["chicken",1],["yogurt",0.5],["tomato",1],["basmati",1],["spinach",1],["butter",0.5]],["Marinate chicken in half the yogurt with garam masala, ginger and garlic.","Sear, then simmer in tomato with the butter and remaining yogurt.","Serve with basmati and wilted spinach."]);
-W("w27","Dinner","Thai","Bangkok Green Curry",[["chicken",1],["coconutmilk",1],["currypaste",1],["greenbeans",1],["pepper",0.5],["basmati",1]],["Fry the curry paste 1 minute; add light coconut milk.","Simmer chicken, green beans and pepper 10 minutes; finish with lime and basil.","Serve with rice."]);
-W("w28","Dinner","Japanese","Miso-Glazed Salmon Night",[["salmon",1],["brownrice",1],["bokchoy",1],["miso",1],["honey",0.25]],["Brush salmon with miso mixed with honey; broil 8 minutes.","Steam the bok choy; serve with rice."]);
-W("w29","Dinner","Italian","Nonna's Lean Bolognese",[["beef95",1],["spaghetti",1],["marinara",1],["carrots",0.5],["mushrooms",1],["parmesan",0.5]],["Brown beef with chopped carrot and mushrooms.","Add marinara and simmer 15 minutes.","Toss with spaghetti and parmesan."]);
-W("w30","Dinner","Mexican","Pueblo Chicken Fajita Sheet Pan",[["chicken",1],["pepper",1.5],["onion",0.5],["flourtort",2],["salsa",2],["oil",0.5]],["Toss sliced chicken, peppers and onion with the oil, cumin, chili and lime.","Roast at 425°F for 18 minutes.","Serve in warm tortillas with salsa."]);
-W("w31","Dinner","Greek","Santorini Lemon Fish & Greens",[["cod",1.25],["potato",1],["greenbeans",1],["oil",0.75],["lime",0.5]],["Roast potatoes 20 minutes; add cod and green beans with oil, lemon and oregano.","Roast 12 more minutes."]);
-W("w32","Dinner","Korean","Bulgogi-Style Beef & Broccoli",[["sirloin",1],["brownrice",1],["broccoli",1],["soysauce",1],["pear",0.25]],["Marinate thin-sliced beef in soy sauce, grated pear, garlic and ginger 15 minutes.","Sear fast in a hot pan; steam broccoli.","Serve over rice."]);
-W("w33","Dinner","Chinese","Sichuan Tofu Stir-Fry",[["tofu",1],["brownrice",1],["broccoli",1],["pepper",0.5],["soysauce",1],["oil",0.5]],["Press and cube the tofu; brown in the oil.","Add vegetables, soy sauce, garlic, ginger and chili flakes or Sichuan pepper.","Serve over rice."]);
-W("w34","Dinner","Vietnamese","Hanoi Chicken Noodle Bowl",[["chicken",1],["ricenoodles",1],["bonebroth",2],["bokchoy",1],["lime",0.5],["fishsauce",0.5]],["Simmer broth with ginger, star anise and cinnamon 10 minutes.","Add sliced chicken and bok choy.","Pour over noodles; finish with lime, herbs and fish sauce."]);
-W("w35","Dinner","Moroccan","Atlas Chicken & Chickpea Tagine",[["chickthigh",1],["chickpeas",0.5],["carrots",1],["tomato",1],["couscous",0.75],["oil",0.5]],["Brown chicken in the oil with cumin, cinnamon, ginger and paprika.","Add tomato, carrots and chickpeas; cover and simmer 25 minutes.","Serve over couscous."]);
-W("w36","Dinner","Ethiopian","Addis Red Lentil Stew",[["lentils",1.5],["tomato",1],["onion",0.5],["oil",0.5],["injera",1],["greens",1]],["Cook onion in the oil with berbere (or paprika, cayenne and cumin).","Add lentils, tomato and 2 cups water; simmer 25 minutes until thick.","Serve with injera and sautéed greens."]);
-W("w37","Dinner","Peruvian","Andes Lomo Saltado-Style Stir-Fry",[["sirloin",1],["potato",1],["tomato",1],["onion",0.5],["brownrice",0.5],["soysauce",0.5]],["Roast potato wedges until crisp.","Stir-fry beef strips hot and fast, then onion and tomato with soy sauce and vinegar.","Serve with the potatoes and rice."]);
-W("w38","Dinner","Brazilian","Bahia Fish Stew",[["tilapia",1.25],["coconutmilk",1],["pepper",1],["tomato",1],["brownrice",1],["lime",0.5]],["Simmer peppers and tomato in light coconut milk with garlic and paprika.","Add the fish; cook 8 minutes. Finish with lime and cilantro.","Serve with rice."]);
-W("w39","Dinner","Caribbean","Port of Spain Curry Chickpeas & Greens",[["chickpeas",1.5],["coconutmilk",0.5],["spinach",2],["potato",0.5],["roti",1]],["Toast curry powder in a little water; add potato and chickpeas.","Simmer with light coconut milk 15 minutes; stir in spinach.","Serve with roti."]);
-W("w40","Dinner","Spanish","Madrid Chicken & White Bean Pot",[["chickthigh",1],["kidneybeans",0.5],["tomato",1],["pepper",0.5],["chorizo",0.5],["sourdough",1]],["Brown chicken and chorizo; add pepper, tomato and smoked paprika.","Add beans and simmer 15 minutes; serve with bread."]);
-W("w41","Dinner","Turkish","Anatolian Lamb Kofta Plate",[["lamb",0.75],["bulgur",1],["cucumber",1],["tomato",1],["yogurt",0.5]],["Mix lamb with onion, cumin and parsley; shape onto skewers and grill.","Serve with bulgur, chopped salad and garlic yogurt."]);
-W("w42","Dinner","Filipino","Cebu Sinigang-Style Shrimp Soup",[["shrimp",1],["bokchoy",1],["tomato",1],["greenbeans",1],["whiterice",0.75],["lime",1]],["Simmer tomato and onion in 3 cups water with tamarind or lime.","Add green beans, then shrimp and bok choy for 3 minutes.","Serve with rice."]);
-W("w43","Dinner","West African","Lagos Peanut Chicken Stew",[["chicken",1],["pb",1],["tomato",1],["sweetpotato",1],["collards",1]],["Simmer tomato with ginger, garlic and chili; whisk in peanut butter and 1 cup water.","Add sweet potato and chicken; cook 20 minutes; stir in greens."]);
-W("w44","Dinner","Southern US","Creole Shrimp & Grits Lite",[["shrimp",1],["polenta",1],["pepper",0.5],["tomato",0.5],["cheddar",0.5]],["Cook polenta (grits) with the cheese.","Sauté shrimp with pepper, tomato and Cajun seasoning; spoon over."]);
-W("w45","Dinner","Japanese","Sapporo Chicken Teriyaki Plate",[["chicken",1],["brownrice",1],["broccoli",1],["teriyaki",1]],["Sear chicken; glaze with teriyaki for the last 2 minutes.","Serve with rice and broccoli."]);
-W("w46","Dinner","Indian","Goa Coconut Fish Curry",[["cod",1.25],["coconutmilk",1],["tomato",1],["basmati",1],["spinach",1]],["Cook tomato with turmeric, chili, ginger and garlic.","Add light coconut milk and the fish; simmer 8 minutes.","Serve with basmati and spinach."]);
-W("w47","Dinner","Italian","Sicilian Eggplant & Chickpea Pasta",[["chickpeapasta",1],["eggplant",1.5],["marinara",1],["ricotta",0.5],["oil",0.5]],["Roast cubed eggplant in the oil 20 minutes.","Toss with pasta, marinara and spoonfuls of ricotta."]);
-W("w48","Dinner","Mexican","Yucatán Citrus Pork Bowl",[["porktender",1],["brownrice",1],["blackbeans",0.5],["onion",0.25],["orange",1],["cabbage",1]],["Marinate pork in orange and lime juice with achiote or paprika and oregano.","Roast and shred; serve over rice and beans with pickled onion and cabbage."]);
-W("w49","Dinner","Southeast Asian","Jakarta Jackfruit Rendang Bowl",[["jackfruit",2],["tempeh",0.5],["coconutmilk",0.5],["currypaste",1],["brownrice",1],["greenbeans",1]],["Fry curry paste; add shredded jackfruit, tempeh and light coconut milk.","Simmer until thick, 15 minutes. Serve with rice and green beans."]);
-W("w50","Dinner","Middle Eastern","Levant Chicken Shawarma Plate",[["chicken",1],["pita",1],["hummus",2],["tomato",1],["cucumber",1],["tzatziki",1]],["Season chicken with cumin, coriander, paprika, cinnamon and lemon; roast and slice.","Serve with pita, hummus, salad and tzatziki."]);
-W("w51","Dinner","Cuban","Havana Black Bean & Chicken Bowl",[["chicken",1],["blackbeans",1],["whiterice",0.75],["plantain",0.5],["onion",0.25]],["Simmer black beans with onion, cumin and oregano.","Serve with rice, sliced chicken and baked plantain."]);
-W("w52","Dinner","Southern US","Gumbo-Style Chicken & Okra",[["chicken",1],["okra",1],["pepper",0.5],["celery",0.5],["tomato",1],["brownrice",0.75]],["Cook pepper, celery and onion with Cajun spice.","Add tomato, okra, chicken and 2 cups broth; simmer 25 minutes.","Serve over rice."]);
-W("w53","Dinner","Latin American","Andean Yuca & Chicken Sancocho",[["chicken",1],["yuca",0.75],["corn",0.5],["carrots",0.5],["bonebroth",2]],["Simmer chicken, yuca, corn and carrot in broth with garlic, cilantro and cumin 30 minutes."]);
+W("wk26","Dinner","Indian","Delhi Butter-Light Chicken",[["chicken",1],["yogurt",0.5],["tomato",1],["basmati",1],["spinach",1],["butter",0.5]],["Marinate chicken in half the yogurt with garam masala, ginger and garlic.","Sear, then simmer in tomato with the butter and remaining yogurt.","Serve with basmati and wilted spinach."]);
+W("wk27","Dinner","Thai","Bangkok Green Curry",[["chicken",1],["coconutmilk",1],["currypaste",1],["greenbeans",1],["pepper",0.5],["basmati",1]],["Fry the curry paste 1 minute; add light coconut milk.","Simmer chicken, green beans and pepper 10 minutes; finish with lime and basil.","Serve with rice."]);
+W("wk28","Dinner","Japanese","Miso-Glazed Salmon Night",[["salmon",1],["brownrice",1],["bokchoy",1],["miso",1],["honey",0.25]],["Brush salmon with miso mixed with honey; broil 8 minutes.","Steam the bok choy; serve with rice."]);
+W("wk29","Dinner","Italian","Nonna's Lean Bolognese",[["beef95",1],["spaghetti",1],["marinara",1],["carrots",0.5],["mushrooms",1],["parmesan",0.5]],["Brown beef with chopped carrot and mushrooms.","Add marinara and simmer 15 minutes.","Toss with spaghetti and parmesan."]);
+W("wk30","Dinner","Mexican","Pueblo Chicken Fajita Sheet Pan",[["chicken",1],["pepper",1.5],["onion",0.5],["flourtort",2],["salsa",2],["oil",0.5]],["Toss sliced chicken, peppers and onion with the oil, cumin, chili and lime.","Roast at 425°F for 18 minutes.","Serve in warm tortillas with salsa."]);
+W("wk31","Dinner","Greek","Santorini Lemon Fish & Greens",[["cod",1.25],["potato",1],["greenbeans",1],["oil",0.75],["lime",0.5]],["Roast potatoes 20 minutes; add cod and green beans with oil, lemon and oregano.","Roast 12 more minutes."]);
+W("wk32","Dinner","Korean","Bulgogi-Style Beef & Broccoli",[["sirloin",1],["brownrice",1],["broccoli",1],["soysauce",1],["pear",0.25]],["Marinate thin-sliced beef in soy sauce, grated pear, garlic and ginger 15 minutes.","Sear fast in a hot pan; steam broccoli.","Serve over rice."]);
+W("wk33","Dinner","Chinese","Sichuan Tofu Stir-Fry",[["tofu",1],["brownrice",1],["broccoli",1],["pepper",0.5],["soysauce",1],["oil",0.5]],["Press and cube the tofu; brown in the oil.","Add vegetables, soy sauce, garlic, ginger and chili flakes or Sichuan pepper.","Serve over rice."]);
+W("wk34","Dinner","Vietnamese","Hanoi Chicken Noodle Bowl",[["chicken",1],["ricenoodles",1],["bonebroth",2],["bokchoy",1],["lime",0.5],["fishsauce",0.5]],["Simmer broth with ginger, star anise and cinnamon 10 minutes.","Add sliced chicken and bok choy.","Pour over noodles; finish with lime, herbs and fish sauce."]);
+W("wk35","Dinner","Moroccan","Atlas Chicken & Chickpea Tagine",[["chickthigh",1],["chickpeas",0.5],["carrots",1],["tomato",1],["couscous",0.75],["oil",0.5]],["Brown chicken in the oil with cumin, cinnamon, ginger and paprika.","Add tomato, carrots and chickpeas; cover and simmer 25 minutes.","Serve over couscous."]);
+W("wk36","Dinner","Ethiopian","Addis Red Lentil Stew",[["lentils",1.5],["tomato",1],["onion",0.5],["oil",0.5],["injera",1],["greens",1]],["Cook onion in the oil with berbere (or paprika, cayenne and cumin).","Add lentils, tomato and 2 cups water; simmer 25 minutes until thick.","Serve with injera and sautéed greens."]);
+W("wk37","Dinner","Peruvian","Andes Lomo Saltado-Style Stir-Fry",[["sirloin",1],["potato",1],["tomato",1],["onion",0.5],["brownrice",0.5],["soysauce",0.5]],["Roast potato wedges until crisp.","Stir-fry beef strips hot and fast, then onion and tomato with soy sauce and vinegar.","Serve with the potatoes and rice."]);
+W("wk38","Dinner","Brazilian","Bahia Fish Stew",[["tilapia",1.25],["coconutmilk",1],["pepper",1],["tomato",1],["brownrice",1],["lime",0.5]],["Simmer peppers and tomato in light coconut milk with garlic and paprika.","Add the fish; cook 8 minutes. Finish with lime and cilantro.","Serve with rice."]);
+W("wk39","Dinner","Caribbean","Port of Spain Curry Chickpeas & Greens",[["chickpeas",1.5],["coconutmilk",0.5],["spinach",2],["potato",0.5],["roti",1]],["Toast curry powder in a little water; add potato and chickpeas.","Simmer with light coconut milk 15 minutes; stir in spinach.","Serve with roti."]);
+W("wk40","Dinner","Spanish","Madrid Chicken & White Bean Pot",[["chickthigh",1],["kidneybeans",0.5],["tomato",1],["pepper",0.5],["chorizo",0.5],["sourdough",1]],["Brown chicken and chorizo; add pepper, tomato and smoked paprika.","Add beans and simmer 15 minutes; serve with bread."]);
+W("wk41","Dinner","Turkish","Anatolian Lamb Kofta Plate",[["lamb",0.75],["bulgur",1],["cucumber",1],["tomato",1],["yogurt",0.5]],["Mix lamb with onion, cumin and parsley; shape onto skewers and grill.","Serve with bulgur, chopped salad and garlic yogurt."]);
+W("wk42","Dinner","Filipino","Cebu Sinigang-Style Shrimp Soup",[["shrimp",1],["bokchoy",1],["tomato",1],["greenbeans",1],["whiterice",0.75],["lime",1]],["Simmer tomato and onion in 3 cups water with tamarind or lime.","Add green beans, then shrimp and bok choy for 3 minutes.","Serve with rice."]);
+W("wk43","Dinner","West African","Lagos Peanut Chicken Stew",[["chicken",1],["pb",1],["tomato",1],["sweetpotato",1],["collards",1]],["Simmer tomato with ginger, garlic and chili; whisk in peanut butter and 1 cup water.","Add sweet potato and chicken; cook 20 minutes; stir in greens."]);
+W("wk44","Dinner","Southern US","Creole Shrimp & Grits Lite",[["shrimp",1],["polenta",1],["pepper",0.5],["tomato",0.5],["cheddar",0.5]],["Cook polenta (grits) with the cheese.","Sauté shrimp with pepper, tomato and Cajun seasoning; spoon over."]);
+W("wk45","Dinner","Japanese","Sapporo Chicken Teriyaki Plate",[["chicken",1],["brownrice",1],["broccoli",1],["teriyaki",1]],["Sear chicken; glaze with teriyaki for the last 2 minutes.","Serve with rice and broccoli."]);
+W("wk46","Dinner","Indian","Goa Coconut Fish Curry",[["cod",1.25],["coconutmilk",1],["tomato",1],["basmati",1],["spinach",1]],["Cook tomato with turmeric, chili, ginger and garlic.","Add light coconut milk and the fish; simmer 8 minutes.","Serve with basmati and spinach."]);
+W("wk47","Dinner","Italian","Sicilian Eggplant & Chickpea Pasta",[["chickpeapasta",1],["eggplant",1.5],["marinara",1],["ricotta",0.5],["oil",0.5]],["Roast cubed eggplant in the oil 20 minutes.","Toss with pasta, marinara and spoonfuls of ricotta."]);
+W("wk48","Dinner","Mexican","Yucatán Citrus Pork Bowl",[["porktender",1],["brownrice",1],["blackbeans",0.5],["onion",0.25],["orange",1],["cabbage",1]],["Marinate pork in orange and lime juice with achiote or paprika and oregano.","Roast and shred; serve over rice and beans with pickled onion and cabbage."]);
+W("wk49","Dinner","Southeast Asian","Jakarta Jackfruit Rendang Bowl",[["jackfruit",2],["tempeh",0.5],["coconutmilk",0.5],["currypaste",1],["brownrice",1],["greenbeans",1]],["Fry curry paste; add shredded jackfruit, tempeh and light coconut milk.","Simmer until thick, 15 minutes. Serve with rice and green beans."]);
+W("wk50","Dinner","Middle Eastern","Levant Chicken Shawarma Plate",[["chicken",1],["pita",1],["hummus",2],["tomato",1],["cucumber",1],["tzatziki",1]],["Season chicken with cumin, coriander, paprika, cinnamon and lemon; roast and slice.","Serve with pita, hummus, salad and tzatziki."]);
+W("wk51","Dinner","Cuban","Havana Black Bean & Chicken Bowl",[["chicken",1],["blackbeans",1],["whiterice",0.75],["plantain",0.5],["onion",0.25]],["Simmer black beans with onion, cumin and oregano.","Serve with rice, sliced chicken and baked plantain."]);
+W("wk52","Dinner","Southern US","Gumbo-Style Chicken & Okra",[["chicken",1],["okra",1],["pepper",0.5],["celery",0.5],["tomato",1],["brownrice",0.75]],["Cook pepper, celery and onion with Cajun spice.","Add tomato, okra, chicken and 2 cups broth; simmer 25 minutes.","Serve over rice."]);
+W("wk53","Dinner","Latin American","Andean Yuca & Chicken Sancocho",[["chicken",1],["yuca",0.75],["corn",0.5],["carrots",0.5],["bonebroth",2]],["Simmer chicken, yuca, corn and carrot in broth with garlic, cilantro and cumin 30 minutes."]);
 
 /* ---------- snacks ---------- */
-W("w54","Snack","Japanese","Edamame & Sea Salt Snack",[["edamame",1],["clementine",1]],["Steam the edamame; sprinkle with a pinch of salt."]);
-W("w55","Snack","Middle Eastern","Mezze Snack Box",[["hummus",2],["cucumber",1],["carrots",0.5],["pita",0.5]],["Slice the vegetables; serve with hummus and pita."]);
-W("w56","Snack","Indian","Mango Lassi Shake",[["yogurt",1],["mango",0.5],["milk",0.5]],["Blend with ice and a pinch of cardamom."]);
-W("w57","Snack","Korean","Kimchi Egg Cup",[["egg",2],["kimchi",0.5]],["Boil the eggs; serve with kimchi."]);
-W("w58","Snack","Mediterranean","Olive & Feta Plate",[["olives",1],["feta",0.5],["cherrytom",1],["crackers",0.5]],["Arrange and serve."]);
-W("w59","Snack","Mexican","Lime-Chili Fruit Cup",[["mango",0.5],["watermelon",0.5],["cucumber",0.5],["lime",0.5],["string",1]],["Toss fruit and cucumber with lime and chili-lime seasoning; serve with string cheese."]);
-W("w60","Snack","Scandinavian","Rye Crisp & Salmon Bite",[["cansalmon",0.5],["crackers",0.5],["cucumber",0.5],["yogurt",0.25]],["Top crackers with salmon, cucumber and a spoon of yogurt with dill."]);
+W("wk54","Snack","Japanese","Edamame & Sea Salt Snack",[["edamame",1],["clementine",1]],["Steam the edamame; sprinkle with a pinch of salt."]);
+W("wk55","Snack","Middle Eastern","Mezze Snack Box",[["hummus",2],["cucumber",1],["carrots",0.5],["pita",0.5]],["Slice the vegetables; serve with hummus and pita."]);
+W("wk56","Snack","Indian","Mango Lassi Shake",[["yogurt",1],["mango",0.5],["milk",0.5]],["Blend with ice and a pinch of cardamom."]);
+W("wk57","Snack","Korean","Kimchi Egg Cup",[["egg",2],["kimchi",0.5]],["Boil the eggs; serve with kimchi."]);
+W("wk58","Snack","Mediterranean","Olive & Feta Plate",[["olives",1],["feta",0.5],["cherrytom",1],["crackers",0.5]],["Arrange and serve."]);
+W("wk59","Snack","Mexican","Lime-Chili Fruit Cup",[["mango",0.5],["watermelon",0.5],["cucumber",0.5],["lime",0.5],["string",1]],["Toss fruit and cucumber with lime and chili-lime seasoning; serve with string cheese."]);
+W("wk60","Snack","Scandinavian","Rye Crisp & Salmon Bite",[["cansalmon",0.5],["crackers",0.5],["cucumber",0.5],["yogurt",0.25]],["Top crackers with salmon, cucumber and a spoon of yogurt with dill."]);
 
 /* ======================================================================
    Coach mode. Trainers on a Coach plan get a client dashboard with each client's
@@ -4056,10 +4060,11 @@ SHEETS.plans = () => {
       <p class="small muted">${p.blurb}${p.per === "year" ? ` · ${money(p.price/12)}/month` : ""}</p>
       ${on ? `<span class="small" style="color:var(--good);font-weight:700">Your plan</span>` : `<button class="btn sm ${p.save ? "primary" : ""}" data-act="pickPlan" data-p="${k}">${active ? "Switch to this" : "Choose"}</button>`}</div>`; };
   return {title:"Plans", wide:true, body:`<div class="stack">${u && u.sub.legacy ? `<p class="small">You're on the founding price of $12.99/month. Switching moves you to the plan you pick.</p>` : ""}
+    <span class="eyebrow">Trucking fleets & companies</span>${fleetPlanCard(active && cur === "fleet_month")}
     <span class="eyebrow">Just you</span><div class="grid g-2">${card("individual_month")}${card("individual_year")}</div>
     <span class="eyebrow">Your household</span><div class="grid g-2">${card("family_month")}${card("family_year")}</div>
     <span class="eyebrow">Trainers & coaches</span><div class="grid g-2">${card("coach_month")}${card("coach_unlimited_month")}</div>
-    <span class="eyebrow">Companies & fleets</span>${fleetPlanCard(active && cur === "fleet_month")}
+
     <p class="small muted">${active ? "Switching takes effect now. Stripe credits the unused part of your current plan toward the new one." : "Every plan starts with a 7-day free trial if you haven't had one. Cancel any time."}</p></div>`};
 };
 A.openPlans = () => openSheet("plans");
@@ -4238,8 +4243,8 @@ const dietMealOK = (t, p) => { const m = mealTotals(t.items); if (p.diet === "ke
 
 /* ---------- setup wizard ---------- */
 const wz = {step:0, d:null};
-const WZ_STEPS = ["You","Goal","Eating","Training","Your day"];
-function wzDefaults(){ const u = me(); return {name:(u && u.name) || "", sex:"", age:"", units:"us", ft:"", inch:"", cm:"", w:"", goal:"loss", rate:0.5, activity:"moderate", diet:"any", faith:"none", faithVeg:false, exclude:[], budget:"", adults:1, kids:0, trainAt:"home", equipment:["chair"], daysPerWeek:3, level:"b", impact:2, lifestyle:"standard", shiftStart:"19:00", shiftLen:12}; }
+const WZ_STEPS = ["You","Your work","Goal","Eating","Training"];
+function wzDefaults(){ const u = me(); return {name:(u && u.name) || "", sex:"", age:"", units:"us", ft:"", inch:"", cm:"", w:"", goal:"loss", rate:0.5, activity:"moderate", diet:"any", faith:"none", faithVeg:false, exclude:[], budget:"", adults:1, kids:0, trainAt:"home", equipment:["chair"], daysPerWeek:3, level:"b", impact:2, lifestyle:"", shiftStart:"19:00", shiftLen:12, route:"", gear:[], dotExp:"", ...(u && u.sub && u.sub.via === "fleet" ? {lifestyle:"road", route:"otr", trainAt:"none", equipment:["bands","chair"], activity:"light"} : {})}; }
 function V_welcome(){
   const d = wz.d ||= wzDefaults(), s = wz.step;
   const opt = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?"selected":""}>${Array.isArray(v) ? v[0] : v}</option>`).join("");
@@ -4252,11 +4257,12 @@ function V_welcome(){
       <label class="f">Units<select data-wz="units"><option value="us" ${d.units==="us"?"selected":""}>US (lb, ft)</option><option value="metric" ${d.units==="metric"?"selected":""}>Metric (kg, cm)</option></select></label>
       ${d.units === "us" ? `<label class="f">Height (ft)<input data-wz="ft" type="number" min="3" max="8" inputmode="numeric" value="${d.ft}"></label><label class="f">Height (in)<input data-wz="inch" type="number" min="0" max="11.9" step="0.1" inputmode="decimal" value="${d.inch}"></label>` : `<label class="f">Height (cm)<input data-wz="cm" type="number" min="100" max="250" inputmode="decimal" value="${d.cm}"></label>`}
       <label class="f">Weight (${d.units === "us" ? "lb" : "kg"})<input data-wz="w" type="number" min="30" max="700" step="0.1" inputmode="decimal" value="${d.w}"></label></div>`;
-  else if (s === 1) body = `<h2>What's your goal?</h2><div class="choices">${big("goal","loss","Lose fat","Keep muscle while the scale comes down")}${big("goal","gain","Build muscle","Gain lean weight with a small surplus")}${big("goal","maintain","Maintain","Hold your weight, get stronger and healthier")}</div>
+  else if (s === 1) body = wzWork(d, big);
+  else if (s === 2) body = `<h2>What's your goal?</h2><div class="choices">${big("goal","loss","Lose fat","Keep muscle while the scale comes down")}${big("goal","gain","Build muscle","Gain lean weight with a small surplus")}${big("goal","maintain","Maintain","Hold your weight, get stronger and healthier")}</div>
     ${d.goal !== "maintain" ? `<label class="f">How fast?<select data-wz="rate">${RATES[d.goal].map(([v,l]) => `<option value="${v}" ${Math.abs(v-d.rate)<1e-6?"selected":""}>${l}</option>`).join("")}</select></label>` : ""}
     <label class="f">How active is your day, outside workouts?<select data-wz="activity">${Object.entries(ACT).map(([k,v]) => `<option value="${k}" ${d.activity===k?"selected":""}>${v[1]} · ${v[2]}</option>`).join("")}</select></label>
     <p class="small muted">Your target adapts every week from your real results, so a rough guess is fine.</p>`;
-  else if (s === 2) body = `<h2>How do you eat?</h2>
+  else if (s === 3) body = `<h2>How do you eat?</h2>
     <div class="fields"><label class="f">Diet<select data-wz="diet">${DIETS.map(([k,l]) => `<option value="${k}" ${d.diet===k?"selected":""}>${l}</option>`).join("")}</select></label>
       <label class="f">Faith or cultural practice<select data-wz="faith">${opt(FAITHS, d.faith)}</select></label></div>
     ${FAITHS[d.faith] && FAITHS[d.faith][1] ? `<p class="small muted">${esc(FAITHS[d.faith][1])}</p>` : ""}
@@ -4264,14 +4270,11 @@ function V_welcome(){
     <div><span class="eyebrow">Allergies & foods you leave out</span><div class="chips" style="margin-top:8px">${EXCL.map(([k,l]) => `<button type="button" class="chip" data-act="wzExcl" data-id="${k}" aria-pressed="${d.exclude.includes(k)}">${d.exclude.includes(k) ? "No " : ""}${l.toLowerCase()}</button>`).join("")}</div></div>
     <div class="fields"><label class="f">Weekly food budget (optional)<input data-wz="budget" type="number" min="0" step="5" inputmode="decimal" placeholder="e.g. 75" value="${d.budget}"></label>
       <label class="f">Adults eating these meals<input data-wz="adults" type="number" min="1" max="8" value="${d.adults}"></label><label class="f">Kids<input data-wz="kids" type="number" min="0" max="8" value="${d.kids}"></label></div>`;
-  else if (s === 3) body = `<h2>How do you train?</h2><div class="choices">${big("trainAt","home","At home","Bodyweight, bands, dumbbells")}${big("trainAt","gym","At a gym","Barbells, machines, cables")}${big("trainAt","none","No equipment","Calisthenics anywhere")}</div>
+  else body = `<h2>How do you train?</h2>${d.lifestyle === "road" ? `<p class="small muted">Set for life on the road: cab-side, truck-stop and hotel-room workouts with bands and bodyweight. Add anything you carry.</p>` : ""}<div class="choices">${big("trainAt","home","At home","Bodyweight, bands, dumbbells")}${big("trainAt","gym","At a gym","Barbells, machines, cables")}${big("trainAt","none","No equipment","Calisthenics anywhere")}</div>
     <div><span class="eyebrow">Equipment you have</span><div class="chips" style="margin-top:8px">${EQUIP.filter(q => q.id !== "other").map(q => `<button type="button" class="chip" data-act="wzEq" data-id="${q.id}" aria-pressed="${d.equipment.includes(q.id)}">${q.label}</button>`).join("")}</div></div>
     <div class="fields"><label class="f">Days per week<select data-wz="daysPerWeek">${[2,3,4,5,6].map(n => `<option ${d.daysPerWeek==n?"selected":""}>${n}</option>`).join("")}</select></label>
       <label class="f">Experience<select data-wz="level"><option value="b" ${d.level==="b"?"selected":""}>New or returning</option><option value="i" ${d.level==="i"?"selected":""}>Some experience</option><option value="e" ${d.level==="e"?"selected":""}>Experienced</option></select></label>
       <label class="f">Impact<select data-wz="impact"><option value="1" ${d.impact==1?"selected":""}>Low · joint-friendly</option><option value="2" ${d.impact==2?"selected":""}>Low to medium</option><option value="3" ${d.impact==3?"selected":""}>Any, including jumps</option></select></label></div>`;
-  else body = `<h2>What does your day look like?</h2><div class="choices">${big("lifestyle","standard","Regular schedule","Days, home most nights")}${big("lifestyle","shift","Shift work","Nights, rotating or long shifts")}${big("lifestyle","road","On the road","Trucking, travel, hotels: no kitchen")}</div>
-    ${d.lifestyle === "shift" ? `<div class="fields"><label class="f">Shift starts<input data-wz="shiftStart" type="time" value="${d.shiftStart}"></label><label class="f">Shift length (hours)<input data-wz="shiftLen" type="number" min="4" max="16" value="${d.shiftLen}"></label></div><p class="small muted">Meal times and reminders line up with your shift instead of the clock.</p>` : ""}
-    ${d.lifestyle === "road" ? `<p class="small muted">You'll get meals you can buy at truck stops, gas stations and delis with no kitchen, and short cab-side, truck-stop and hotel-room workouts.</p>` : ""}`;
   return `<div class="wizard"><div class="wzprog">${WZ_STEPS.map((x,i) => `<span class="${i < s ? "done" : i === s ? "on" : ""}">${x}</span>`).join("")}</div>
     <form class="card stack" data-form="wz">${body}<div class="gerr" id="wzErr"></div>
     <div class="row">${s ? `<button type="button" class="btn" data-act="wzBack">Back</button>` : ""}<span class="spacer"></span><button class="btn primary">${s === WZ_STEPS.length-1 ? "Build my plan" : "Next"}</button></div></form>
@@ -4283,8 +4286,9 @@ document.addEventListener("change", e => { const el = e.target; if (!el.dataset 
 A.wzSet = el => { const d = wz.d, f = el.dataset.f, v = el.dataset.v; d[f] = v;
   if (f === "goal") d.rate = defaultRate(v);
   if (f === "trainAt") d.equipment = v === "gym" ? GYM.slice() : v === "home" ? ["chair","bands","dumbbells"] : [];
-  if (f === "lifestyle" && v === "road"){ d.trainAt = "none"; d.equipment = ["bands","chair"]; d.impact = Math.min(+d.impact, 2); }
+  if (f === "lifestyle"){ if (v === "road"){ d.trainAt = "none"; d.equipment = ["bands","chair"]; d.impact = Math.min(+d.impact, 2); d.activity = "light"; d.route ||= "otr"; } else if (d.activity === "light") d.activity = "moderate"; }
   render(); };
+A.wzGear = el => { const a = wz.d.gear, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzExcl = el => { const a = wz.d.exclude, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzEq = el => { const a = wz.d.equipment, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzBack = () => { wz.step = Math.max(0, wz.step - 1); render(); };
@@ -4298,13 +4302,16 @@ document.addEventListener("submit", e => {
     if (!(hcm >= 100 && hcm <= 250)) return err("Enter your height.");
     if (!(+d.w > 0)) return err("Enter your weight.");
   }
+  if (wz.step === 1 && !d.lifestyle) return err("Pick the one that fits your work.");
   if (wz.step < WZ_STEPS.length - 1){ wz.step++; render(); window.scrollTo(0,0); return; }
   const hcm = d.units === "us" ? ((+d.ft||0)*12 + (+d.inch||0))*2.54 : +d.cm, kg = d.units === "us" ? +d.w/LB : +d.w;
   const p = Object.assign(defaultProfile(), {name:d.name.trim().slice(0,40), sex:d.sex, age:+d.age, units:d.units, heightCm:hcm, weightKg:kg, activity:d.activity, goal:d.goal, rate:d.goal === "maintain" ? 0 : +d.rate,
     diet:d.diet, faith:d.faith, faithVeg:!!d.faithVeg, exclude:d.exclude.slice(), budget:+d.budget || 0, household:{adults:clamp(+d.adults||1,1,8), kids:clamp(+d.kids||0,0,8)},
     trainAt:d.trainAt, equipment:d.equipment.slice(), daysPerWeek:+d.daysPerWeek, level:d.level, impact:+d.impact, lifestyle:d.lifestyle, shiftStart:d.shiftStart, shiftLen:+d.shiftLen || 12,
-    planSeed:1 + Math.floor(Math.random()*999), startDate:todayKey(), adaptive:true});
+    planSeed:1 + Math.floor(Math.random()*999), startDate:todayKey(), adaptive:true,
+    driver: d.lifestyle === "road" ? {route: d.route || "otr", gear: d.gear.slice()} : null});
   state = freshState(p); state.meta.welcome = false;
+  if (p.driver && d.dotExp) dotState().certExpires = d.dotExp;
   persist("profile","food","training","health"); wz.step = 0; wz.d = null; go("today"); toast("Your plan is ready.");
   setTimeout(() => openSheet("welcomeNext"), 900);
 }, true);
@@ -4377,6 +4384,20 @@ function roadCard(){
     <p class="small muted">Today's meals are all things you can grab at a truck stop, gas station or deli. No kitchen needed.</p>
     <div class="row"><a class="btn sm" href="https://www.google.com/maps/search/grocery+store+near+me" target="_blank" rel="noopener">Grocery stores near me</a><a class="btn sm" href="https://www.google.com/maps/search/truck+stop+near+me" target="_blank" rel="noopener">Truck stops near me</a><button class="btn sm" data-act="qWorkout">Start cab-side workout</button></div>
     <p class="small muted">Walking tip: 10 minutes of laps around the lot is about 1,000 steps. Do one at every stop.</p></section>`;
+}
+
+/* the "Your work" step: truck drivers get their own setup right after the basics */
+const ROUTES = {otr:["Over the road","Out a week or more, sleeping in the truck"], regional:["Regional","Out a few nights a week"], local:["Local / home daily","Home most nights, eating on the road during the day"], team:["Team driving","Sharing the truck, odd sleep hours"]};
+const CAB_GEAR = [["fridge","Cab fridge or cooler"],["heat","Microwave or 12V lunchbox cooker"],["blender","Blender (inverter)"]];
+function wzWork(d, big){
+  return `<h2>What kind of work do you do?</h2><p class="muted">We build your meals, meal times and workouts around it.</p>
+    <div class="choices">${big("lifestyle","road","Truck driver","OTR, regional, local or team")}${big("lifestyle","shift","Shift work","Nights, rotating or long shifts")}${big("lifestyle","standard","Regular schedule","Days, home most nights")}</div>
+    ${d.lifestyle === "road" ? `<div class="stack drvsetup"><span class="eyebrow">Your route</span><div class="choices">${Object.entries(ROUTES).map(([k,[t,sub]]) => big("route", k, t, sub)).join("")}</div>
+      <span class="eyebrow">What's in your cab?</span><div class="chips">${CAB_GEAR.map(([k,l]) => `<button type="button" class="chip" data-act="wzGear" data-id="${k}" aria-pressed="${d.gear.includes(k)}">${l}</button>`).join("")}</div>
+      <p class="small muted">${d.gear.length ? "We'll add meals you can prep at home and keep or heat in the truck, alongside truck-stop picks." : "No gear? No problem: every meal is something you can buy at a truck stop, travel center or deli."}</p>
+      <label class="f" style="max-width:260px">DOT medical card expires <span class="muted">(optional)</span><input data-wz="dotExp" type="date" value="${esc(d.dotExp)}"></label>
+      <p class="small muted">We'll count down to your physical and help you get your blood pressure, sleep and blood sugar ready for it.</p></div>` : ""}
+    ${d.lifestyle === "shift" ? `<div class="fields"><label class="f">Shift starts<input data-wz="shiftStart" type="time" value="${d.shiftStart}"></label><label class="f">Shift length (hours)<input data-wz="shiftLen" type="number" min="4" max="16" value="${d.shiftLen}"></label></div><p class="small muted">Meal times and reminders line up with your shift instead of the clock.</p>` : ""}`;
 }
 
 /* ======================================================================
@@ -4504,6 +4525,65 @@ SHEETS.fast = () => { const f = state.health.fast; return {title:"Fasting timer"
   <p class="note">Fasting isn't right for everyone. Skip it if you're pregnant, have diabetes on medication, or have a history of disordered eating, unless your doctor says it's OK.</p></div>`}; };
 A.fastQuick = () => { if (!premiumGate("Fasting timer")) return; openSheet("fast"); };
 const _fastStart = A.fastStart; A.fastStart = el => { _fastStart(el); if (sheet.open && sheet.view === "fast") closeSheet(); };
+
+/* ======================================================================
+   Truck drivers: route type (OTR, regional, local, team) and cab gear shape the menu.
+   Local drivers eat road meals by day and a home-cooked dinner; drivers with a fridge,
+   microwave or 12V cooker also get meals prepped at home and kept or heated in the truck.
+   ====================================================================== */
+F("chxpouch","Chicken breast pouch","2.6 oz pouch","road",90,17,0,2,0,0,["chicken"]);
+F("ricecup","Microwavable brown rice cup","1 cup","road",210,4,42,2,0,0,[]);
+F("quinoacup","Microwavable quinoa cup","1 cup","road",200,7,34,4,1,0,[]);
+F("salmonpouch","Salmon pouch","2.5 oz pouch","road",70,13,0,2,0,0,["fish"]);
+F("beanscup","Black beans, microwavable cup","1/2 cup","road",110,7,20,0.5,0,0,[]);
+const GT = (id, slot, need, name, items, steps) => TEMPLATES.push(Object.assign(T(id, slot, "road", name, items, steps), {road:true, need}));
+GT("g1","Breakfast",["fridge","heat"],"Cab-cooker egg white scramble",[["eggwhite",1.5],["salsa",1],["corntort",2],["string",1]],["Pour egg whites into your lunchbox cooker or a microwave-safe bowl; heat 2–3 minutes, stirring once.","Fold into warm tortillas with salsa and string cheese."]);
+GT("g2","Breakfast",["fridge"],"Overnight oats jar",[["oats",0.75],["milk",1],["chia",1],["frozberries",0.5]],["Before bed, stir oats, milk, chia and berries in a jar; keep it in the fridge.","Grab it in the morning: no cooking."]);
+GT("g3","Breakfast",["fridge","blender"],"Cab blender protein shake",[["whey",1],["banana",1],["milk",1],["pb",0.5]],["Blend everything with a few ice cubes on your inverter blender.","Rinse the cup right away so it's ready tomorrow."]);
+GT("g4","Lunch",["heat"],"Chicken & rice cooker bowl",[["chxpouch",1.5],["ricecup",1],["beanscup",1],["salsa",1]],["Heat the rice and bean cups (microwave 90 seconds or lunchbox cooker 20 minutes).","Stir in the chicken pouches and salsa. Everything here is shelf-stable."]);
+GT("g5","Lunch",["fridge"],"Turkey roll-up box",[["turkeydeli",1.5],["string",1],["babycarrots",1],["apple",1]],["Roll turkey slices around string cheese.","Carrots and an apple on the side."]);
+GT("g6","Dinner",["fridge","heat"],"Home-prepped chicken, sweet potato & broccoli",[["chicken",1],["sweetpotato",1],["broccoli",1]],["Cook a batch at home before your run: bake chicken and sweet potatoes, steam broccoli.","Pack in containers; keep cold and eat within 4 days. Reheat in the microwave or cooker."]);
+GT("g7","Dinner",["heat"],"Salmon & quinoa cooker bowl",[["salmonpouch",2],["quinoacup",1],["greenbeans",0.75]],["Heat the quinoa cup and canned green beans.","Top with the salmon pouches and a squeeze of lemon."]);
+GT("g8","Dinner",["fridge","heat"],"Home-made turkey chili jar",[["turkey",1],["kidneybeans",0.75],["tomato",1],["onion",0.25],["cheddar",0.5]],["Make a pot at home with ground turkey, beans, tomato, onion and chili powder.","Portion into jars; keep cold up to 4 days and reheat in the truck."]);
+GT("g9","Snack",["fridge"],"Cottage cheese & berries",[["cottage",0.5],["frozberries",0.5]],["Frozen berries thaw in the fridge overnight and keep the cottage cheese cold."]);
+GT("g10","Snack",["fridge"],"Greek yogurt & almonds",[["gyogcup",1],["almonds",0.5]],["Keep yogurt cups in the fridge; almonds in the door pocket."]);
+GT("g11","Lunch",["heat"],"Tuna, beans & rice bowl",[["tunapouch",2],["ricecup",1],["beanscup",1]],["Heat the rice and beans; stir in the tuna with hot sauce or mustard."]);
+
+const _mealPoolForD = mealPoolFor;
+mealPoolFor = (slot, p, rules) => {
+  const dr = p.driver;
+  // local drivers are home for dinner
+  if (dr && dr.route === "local" && slot === "Dinner" && p.lifestyle === "road") return _mealPoolForD(slot, Object.assign({}, p, {lifestyle:"standard"}), rules);
+  let pool = _mealPoolForD(slot, p, rules);
+  const gear = new Set((dr && dr.gear) || []), fit = pool.filter(t => !t.need || t.need.every(g => gear.has(g)));
+  return fit.length ? fit : pool.filter(t => !t.need).length ? pool.filter(t => !t.need) : pool;
+};
+
+/* Today: a driver card with the medical-card countdown */
+const _roadCardD = roadCard;
+roadCard = () => {
+  const p = state.profile, dr = p.driver || {}, d = dotState(), days = d.certExpires ? Math.ceil((pkey(d.certExpires) - new Date())/864e5) : null;
+  const dot = days == null ? `<button class="btn sm" data-act="nav" data-view="dot">Set up DOT physical prep</button>`
+    : `<div class="drvdot ${days <= 45 ? "soon" : ""}"><div><span class="eyebrow">DOT medical card</span><b>${days < 0 ? `Expired ${-days} days ago` : `${days} days left`}</b></div><button class="btn sm" data-act="nav" data-view="dot">Open DOT prep</button></div>`;
+  const gear = dr.gear || [], note = dr.route === "local" ? "Road meals by day and a home-cooked dinner at night." : gear.length ? `Truck-stop picks plus meals you prep at home and ${gear.includes("heat") ? "heat" : "keep cold"} in the truck.` : "";
+  let html = _roadCardD();
+  if (note) html = html.replace(/<p class="small muted">Today's meals are all things[^<]*<\/p>/, `<p class="small muted">${note}</p>`);
+  return html.replace('</section>', `${dot}</section>`);
+};
+
+/* Profile: driver setup can be changed any time */
+function driverCard(){
+  const p = state.profile; if (p.lifestyle !== "road") return "";
+  const dr = p.driver ||= {route:"otr", gear:[]};
+  return `<section class="card stack"><h2>Truck driver setup</h2>
+    <label class="f">Route<select data-field="drvRoute">${Object.entries(ROUTES).map(([k,[t]]) => `<option value="${k}" ${dr.route === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    <div><span class="eyebrow">In your cab</span><div class="chips" style="margin-top:8px">${CAB_GEAR.map(([k,l]) => `<button class="chip" data-act="drvGear" data-id="${k}" aria-pressed="${(dr.gear || []).includes(k)}">${l}</button>`).join("")}</div></div>
+    <p class="small muted">Menus use truck-stop picks${(dr.gear || []).length ? " plus meals you prep at home and keep or heat in the truck" : ""}${dr.route === "local" ? ", with dinner at home" : ""}.</p></section>`;
+}
+A.drvGear = el => { const dr = state.profile.driver ||= {route:"otr", gear:[]}, g = dr.gear ||= [], i = g.indexOf(el.dataset.id); if (i >= 0) g.splice(i,1); else g.push(el.dataset.id); state.profile.planSeed++; persist("profile"); render(); toast("Menus updated for your cab"); };
+document.addEventListener("change", e => { const el = e.target; if (!(el.dataset && el.dataset.field === "drvRoute")) return; (state.profile.driver ||= {route:"otr", gear:[]}).route = el.value; state.profile.planSeed++; persist("profile"); render(); toast("Menus updated for your route"); });
+const _profileExtrasD = profileExtras;
+profileExtras = () => _profileExtrasD().replace('<section class="card stack"><h2>Reminders & app</h2>', driverCard() + '<section class="card stack"><h2>Reminders & app</h2>');
 
 /* ======================================================================
    Eating out: restaurant menu scanner, chain restaurant menus from around the world,
@@ -5121,7 +5201,7 @@ const _today = RENDER.today; RENDER.today = () => {
     coach_unlimited_month:{n:"Coach Unlimited", price:"$49.99", per:"month", note:"Unlimited clients"},
     fleet_month:{n:"Fleet & company", price:"$10", per:"seat/month", note:"20-seat minimum · $8/seat for 51+"}
   };
-  let annual = true, plan = "individual_year", gmode = "signup", freeSignup = true;
+  let annual = true, plan = "individual_year", gmode = "signup", freeSignup = true, fleetInfo = {};
   try { const q = new URLSearchParams(location.search).get("plan"); if (q && P[q]) plan = q; } catch {}
   const ic = n => `<span class="qi">${(typeof ICON !== "undefined" && ICON[n]) || ""}</span>`;
   const form = mode => {
@@ -5129,8 +5209,8 @@ const _today = RENDER.today; RENDER.today = () => {
     if (mode === "signup") return `<form class="card stack gform" data-gate="signup"><h2>${freeSignup ? "Create your free account" : "Start your 7-day Premium trial"}</h2>
       ${freeSignup ? `<p class="small muted">Free forever: log food, log workouts, follow your meal plan, track progress and join buddies. No card needed. Upgrade to Premium any time.</p>` : `<div class="row" style="justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:10px 12px"><span><b>${pl.n}</b><br><small class="muted">${pl.note}</small></span><span><b>${pl.price}</b><small class="muted">/${pl.per}</small></span></div>
       <p class="small muted">Next you'll add a card with Stripe. Nothing is charged today. After 7 days your card is billed ${pl.price}, then every ${pl.per}. Cancel any time before the trial ends and you won't be charged.</p>`}
-      ${plan === "fleet_month" && !freeSignup ? `<label class="f">Company name<input id="gCo" type="text" autocomplete="organization" maxlength="80" required></label>
-      <label class="f">Number of seats (20 minimum)<input id="gSeats" type="number" min="20" max="5000" value="20" required></label><p class="small muted" id="gSeatTotal">20 seats × $10 = $200/month. Your own access is included.</p>` : ""}
+      ${plan === "fleet_month" && !freeSignup ? `<label class="f">Company name<input id="gCo" type="text" autocomplete="organization" maxlength="80" required value="${(fleetInfo.company || "").replace(/"/g, "&quot;")}"></label>
+      <label class="f">Number of seats (20 minimum)<input id="gSeats" type="number" min="20" max="5000" value="${fleetInfo.seats || 20}" required></label><p class="small muted" id="gSeatTotal">${(() => { const n = fleetInfo.seats || 20, u = n > 50 ? 8 : 10; return `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; })()}</p>` : ""}
       <label class="f">First name<input id="gName" type="text" autocomplete="given-name" maxlength="40"></label>
       <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
       <label class="f">Password (8+ characters)<input id="gPw" type="password" autocomplete="new-password" minlength="8" required></label>
@@ -5153,12 +5233,15 @@ const _today = RENDER.today; RENDER.today = () => {
       ${k2 ? `<p class="small">or <b>${P[k2].price}/${P[k2].per}</b> · ${P[k2].note}</p>` : ""}
       <ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>
       <button class="btn ${best ? "primary" : ""}" data-gplan="${k}">${pick ? "Choose" : "Start free trial"}</button>${k2 ? `<button class="btn sm ghost" data-gplan="${k2}">${pick ? "Choose" : "Start"} ${P[k2].n}</button>` : ""}</div>`;
-    return `<div class="gtoggle"><div class="seg"><button data-gannual="0" aria-pressed="${!annual}">Monthly</button><button data-gannual="1" aria-pressed="${annual}">Annual · save up to 37%</button></div></div>
+    const fleetCard = `<div class="card gplan gfleet"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:14px;align-items:flex-start"><div style="flex:1;min-width:240px"><span class="pill low" style="align-self:flex-start">For trucking fleets &amp; companies</span><h3 style="margin-top:8px">Fleet &amp; company wellness</h3><p class="small muted">Give every driver or employee full Premium: truck-stop meal plans, DOT physical prep, sleep, workouts and food logging. Each person has a private account; you see who joined and who's active, never their health data. Coach tools not included.</p></div>
+        <div class="stack" style="min-width:230px;flex:0 1 280px"><div><span class="big" style="font-size:2rem">$10</span><span class="muted">/seat/month</span><p class="small muted" style="margin:2px 0 0">20-seat minimum · <b>$8/seat</b> for 51 or more</p></div>
+          <input id="gfCo" type="text" placeholder="Company name" maxlength="80" autocomplete="organization" value="${fleetInfo.company ? fleetInfo.company.replace(/"/g, "&quot;") : ""}" aria-label="Company name">
+          <div class="row" style="gap:8px"><input id="gfSeats" type="number" min="20" max="5000" value="${fleetInfo.seats || 20}" style="width:100px" aria-label="Number of seats"><span class="small muted" id="gfTotal">${(() => { const n = fleetInfo.seats || 20; return `${n} seats × $${n > 50 ? 8 : 10} = $${(n*(n > 50 ? 8 : 10)).toLocaleString()}/mo`; })()}</span></div>
+          <button class="btn primary" data-gplan="fleet_month">${pick ? "Start fleet plan" : "Set up my fleet"}</button></div></div></div>`;
+    return `${fleetCard}<div class="gtoggle"><div class="seg"><button data-gannual="0" aria-pressed="${!annual}">Monthly</button><button data-gannual="1" aria-pressed="${annual}">Annual · save up to 37%</button></div></div>
       <div class="gplans">${card(ind, "Just you", true, ["Adaptive calorie & macro targets","Barcode, photo & voice food logging","Meal plans for every diet & faith","1,700+ exercises with demos","Buddies, reminders, progress"])}
       ${card(fam, "Family", false, ["Everything in Rep & Ration","You plus 4 people, each with their own account","Meal prep & groceries scaled for the household","One bill"])}
       ${card("coach_month", "Coach", false, ["Your own full membership","Client dashboard: meals, macros, workouts, weight","Message clients in the app","Clients keep their own membership"], "coach_unlimited_month")}</div>
-      <div class="card gplan gfleet"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:12px"><div style="flex:1;min-width:240px"><h3>Fleets & companies</h3><p class="small muted">Give your drivers or employees full Premium: meal plans, logging, workouts, DOT physical prep, sleep and fasting. Each person has a private account; you see who joined and who's active, never their health data. Coach tools not included.</p></div>
-        <div style="text-align:right"><span class="big" style="font-size:2rem">$10</span><span class="muted">/seat/month</span><p class="small muted">20-seat minimum · <b>$8/seat</b> for 51+</p><button class="btn" data-gplan="fleet_month">${pick ? "Choose" : "Set up a fleet"}</button></div></div></div>
       <p class="small muted" style="text-align:center;margin-top:10px">7 days free on any plan · card required · cancel any time before day 8 and you pay nothing</p>`;
   };
   const freeCard = () => `<div class="card row" style="margin-top:20px;justify-content:space-between"><div style="flex:1;min-width:220px"><h3>Free</h3><p class="small muted">Log food by search, log workouts, follow your meal plan, track progress and join buddies. No card, no time limit.</p></div><div class="row"><span class="big" style="font-size:2rem">$0</span><button class="btn" data-gfree>Start free</button></div></div>`;
@@ -5198,9 +5281,8 @@ const _today = RENDER.today; RENDER.today = () => {
       <p class="small muted" style="text-align:center">Payments are handled securely by Stripe. Added to a family plan? Make sure you signed up with the email the plan owner added.</p>${foot}`;
   }
   const err = m => { const e = $g("#gErr"); if (e) e.textContent = m; };
-  let fleetInfo = {};
   async function checkout(){ try { const j = await RR_API("billing/checkout", Object.assign({plan}, plan === "fleet_month" ? fleetInfo : {})); location.href = j.url; } catch (e){ err(e.message); } }
-  document.addEventListener("input", e => { if (e.target.id === "gSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gSeatTotal"); if (t) t.textContent = n < 20 ? "Fleet plans start at 20 seats." : `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; } });
+  document.addEventListener("input", e => { if (e.target.id === "gfSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gfTotal"); if (t) t.textContent = n < 20 ? "20-seat minimum" : `${n} seats × $${u} = $${(n*u).toLocaleString()}/mo`; } if (e.target.id === "gSeats"){ const n = Math.round(+e.target.value || 0), u = n > 50 ? 8 : 10, t = $g("#gSeatTotal"); if (t) t.textContent = n < 20 ? "Fleet plans start at 20 seats." : `${n} seats × $${u} = $${(n*u).toLocaleString()}/month. Your own access is included.`; } });
   let mode = "landing";
   document.addEventListener("click", async e => {
     if (!e.target.closest("#gate")) return;
@@ -5208,6 +5290,8 @@ const _today = RENDER.today; RENDER.today = () => {
     if (e.target.closest("[data-gfree]")){ freeSignup = true; gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); return; }
     if (e.target.closest("[data-gscroll]")){ const t = $g("#gPlans"); if (t) t.scrollIntoView({behavior:"smooth"}); return; }
     const a = e.target.closest("[data-gannual]"); if (a){ annual = a.dataset.gannual === "1"; plan = annual ? plan.replace("_month", "_year").replace("coach_year", "coach_month").replace("coach_unlimited_year", "coach_unlimited_month").replace("fleet_year", "fleet_month") : plan.replace("_year", "_month"); if (mode === "paywall") show("paywall", window.RR_USER); else { const y = scrollY; show("landing"); scrollTo(0, y); } return; }
+    const fp = e.target.closest("[data-gplan]"); if (fp && fp.dataset.gplan === "fleet_month"){ const co = ($g("#gfCo") || {}).value || "", n = Math.round(+($g("#gfSeats") || {}).value || 0);
+      if (co.trim().length < 2){ alert("Enter your company name."); return; } if (!(n >= 20)){ alert("Fleet plans start at 20 seats."); return; } fleetInfo = {company: co.trim(), seats: n}; }
     const p = e.target.closest("[data-gplan]"); if (p){ plan = p.dataset.gplan; freeSignup = false; if (mode === "paywall"){ p.disabled = true; return checkout(); } gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { const n = $g("#gName"); if (n) n.focus({preventScroll:true}); }, 400); return; }
     if (e.target.closest("[data-glogout]")) { await RR_API("auth/logout", {}).catch(() => {}); location.href = "/"; }
   });

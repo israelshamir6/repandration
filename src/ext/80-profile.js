@@ -27,8 +27,8 @@ const dietMealOK = (t, p) => { const m = mealTotals(t.items); if (p.diet === "ke
 
 /* ---------- setup wizard ---------- */
 const wz = {step:0, d:null};
-const WZ_STEPS = ["You","Goal","Eating","Training","Your day"];
-function wzDefaults(){ const u = me(); return {name:(u && u.name) || "", sex:"", age:"", units:"us", ft:"", inch:"", cm:"", w:"", goal:"loss", rate:0.5, activity:"moderate", diet:"any", faith:"none", faithVeg:false, exclude:[], budget:"", adults:1, kids:0, trainAt:"home", equipment:["chair"], daysPerWeek:3, level:"b", impact:2, lifestyle:"standard", shiftStart:"19:00", shiftLen:12}; }
+const WZ_STEPS = ["You","Your work","Goal","Eating","Training"];
+function wzDefaults(){ const u = me(); return {name:(u && u.name) || "", sex:"", age:"", units:"us", ft:"", inch:"", cm:"", w:"", goal:"loss", rate:0.5, activity:"moderate", diet:"any", faith:"none", faithVeg:false, exclude:[], budget:"", adults:1, kids:0, trainAt:"home", equipment:["chair"], daysPerWeek:3, level:"b", impact:2, lifestyle:"", shiftStart:"19:00", shiftLen:12, route:"", gear:[], dotExp:"", ...(u && u.sub && u.sub.via === "fleet" ? {lifestyle:"road", route:"otr", trainAt:"none", equipment:["bands","chair"], activity:"light"} : {})}; }
 function V_welcome(){
   const d = wz.d ||= wzDefaults(), s = wz.step;
   const opt = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?"selected":""}>${Array.isArray(v) ? v[0] : v}</option>`).join("");
@@ -41,11 +41,12 @@ function V_welcome(){
       <label class="f">Units<select data-wz="units"><option value="us" ${d.units==="us"?"selected":""}>US (lb, ft)</option><option value="metric" ${d.units==="metric"?"selected":""}>Metric (kg, cm)</option></select></label>
       ${d.units === "us" ? `<label class="f">Height (ft)<input data-wz="ft" type="number" min="3" max="8" inputmode="numeric" value="${d.ft}"></label><label class="f">Height (in)<input data-wz="inch" type="number" min="0" max="11.9" step="0.1" inputmode="decimal" value="${d.inch}"></label>` : `<label class="f">Height (cm)<input data-wz="cm" type="number" min="100" max="250" inputmode="decimal" value="${d.cm}"></label>`}
       <label class="f">Weight (${d.units === "us" ? "lb" : "kg"})<input data-wz="w" type="number" min="30" max="700" step="0.1" inputmode="decimal" value="${d.w}"></label></div>`;
-  else if (s === 1) body = `<h2>What's your goal?</h2><div class="choices">${big("goal","loss","Lose fat","Keep muscle while the scale comes down")}${big("goal","gain","Build muscle","Gain lean weight with a small surplus")}${big("goal","maintain","Maintain","Hold your weight, get stronger and healthier")}</div>
+  else if (s === 1) body = wzWork(d, big);
+  else if (s === 2) body = `<h2>What's your goal?</h2><div class="choices">${big("goal","loss","Lose fat","Keep muscle while the scale comes down")}${big("goal","gain","Build muscle","Gain lean weight with a small surplus")}${big("goal","maintain","Maintain","Hold your weight, get stronger and healthier")}</div>
     ${d.goal !== "maintain" ? `<label class="f">How fast?<select data-wz="rate">${RATES[d.goal].map(([v,l]) => `<option value="${v}" ${Math.abs(v-d.rate)<1e-6?"selected":""}>${l}</option>`).join("")}</select></label>` : ""}
     <label class="f">How active is your day, outside workouts?<select data-wz="activity">${Object.entries(ACT).map(([k,v]) => `<option value="${k}" ${d.activity===k?"selected":""}>${v[1]} · ${v[2]}</option>`).join("")}</select></label>
     <p class="small muted">Your target adapts every week from your real results, so a rough guess is fine.</p>`;
-  else if (s === 2) body = `<h2>How do you eat?</h2>
+  else if (s === 3) body = `<h2>How do you eat?</h2>
     <div class="fields"><label class="f">Diet<select data-wz="diet">${DIETS.map(([k,l]) => `<option value="${k}" ${d.diet===k?"selected":""}>${l}</option>`).join("")}</select></label>
       <label class="f">Faith or cultural practice<select data-wz="faith">${opt(FAITHS, d.faith)}</select></label></div>
     ${FAITHS[d.faith] && FAITHS[d.faith][1] ? `<p class="small muted">${esc(FAITHS[d.faith][1])}</p>` : ""}
@@ -53,14 +54,11 @@ function V_welcome(){
     <div><span class="eyebrow">Allergies & foods you leave out</span><div class="chips" style="margin-top:8px">${EXCL.map(([k,l]) => `<button type="button" class="chip" data-act="wzExcl" data-id="${k}" aria-pressed="${d.exclude.includes(k)}">${d.exclude.includes(k) ? "No " : ""}${l.toLowerCase()}</button>`).join("")}</div></div>
     <div class="fields"><label class="f">Weekly food budget (optional)<input data-wz="budget" type="number" min="0" step="5" inputmode="decimal" placeholder="e.g. 75" value="${d.budget}"></label>
       <label class="f">Adults eating these meals<input data-wz="adults" type="number" min="1" max="8" value="${d.adults}"></label><label class="f">Kids<input data-wz="kids" type="number" min="0" max="8" value="${d.kids}"></label></div>`;
-  else if (s === 3) body = `<h2>How do you train?</h2><div class="choices">${big("trainAt","home","At home","Bodyweight, bands, dumbbells")}${big("trainAt","gym","At a gym","Barbells, machines, cables")}${big("trainAt","none","No equipment","Calisthenics anywhere")}</div>
+  else body = `<h2>How do you train?</h2>${d.lifestyle === "road" ? `<p class="small muted">Set for life on the road: cab-side, truck-stop and hotel-room workouts with bands and bodyweight. Add anything you carry.</p>` : ""}<div class="choices">${big("trainAt","home","At home","Bodyweight, bands, dumbbells")}${big("trainAt","gym","At a gym","Barbells, machines, cables")}${big("trainAt","none","No equipment","Calisthenics anywhere")}</div>
     <div><span class="eyebrow">Equipment you have</span><div class="chips" style="margin-top:8px">${EQUIP.filter(q => q.id !== "other").map(q => `<button type="button" class="chip" data-act="wzEq" data-id="${q.id}" aria-pressed="${d.equipment.includes(q.id)}">${q.label}</button>`).join("")}</div></div>
     <div class="fields"><label class="f">Days per week<select data-wz="daysPerWeek">${[2,3,4,5,6].map(n => `<option ${d.daysPerWeek==n?"selected":""}>${n}</option>`).join("")}</select></label>
       <label class="f">Experience<select data-wz="level"><option value="b" ${d.level==="b"?"selected":""}>New or returning</option><option value="i" ${d.level==="i"?"selected":""}>Some experience</option><option value="e" ${d.level==="e"?"selected":""}>Experienced</option></select></label>
       <label class="f">Impact<select data-wz="impact"><option value="1" ${d.impact==1?"selected":""}>Low · joint-friendly</option><option value="2" ${d.impact==2?"selected":""}>Low to medium</option><option value="3" ${d.impact==3?"selected":""}>Any, including jumps</option></select></label></div>`;
-  else body = `<h2>What does your day look like?</h2><div class="choices">${big("lifestyle","standard","Regular schedule","Days, home most nights")}${big("lifestyle","shift","Shift work","Nights, rotating or long shifts")}${big("lifestyle","road","On the road","Trucking, travel, hotels: no kitchen")}</div>
-    ${d.lifestyle === "shift" ? `<div class="fields"><label class="f">Shift starts<input data-wz="shiftStart" type="time" value="${d.shiftStart}"></label><label class="f">Shift length (hours)<input data-wz="shiftLen" type="number" min="4" max="16" value="${d.shiftLen}"></label></div><p class="small muted">Meal times and reminders line up with your shift instead of the clock.</p>` : ""}
-    ${d.lifestyle === "road" ? `<p class="small muted">You'll get meals you can buy at truck stops, gas stations and delis with no kitchen, and short cab-side, truck-stop and hotel-room workouts.</p>` : ""}`;
   return `<div class="wizard"><div class="wzprog">${WZ_STEPS.map((x,i) => `<span class="${i < s ? "done" : i === s ? "on" : ""}">${x}</span>`).join("")}</div>
     <form class="card stack" data-form="wz">${body}<div class="gerr" id="wzErr"></div>
     <div class="row">${s ? `<button type="button" class="btn" data-act="wzBack">Back</button>` : ""}<span class="spacer"></span><button class="btn primary">${s === WZ_STEPS.length-1 ? "Build my plan" : "Next"}</button></div></form>
@@ -72,8 +70,9 @@ document.addEventListener("change", e => { const el = e.target; if (!el.dataset 
 A.wzSet = el => { const d = wz.d, f = el.dataset.f, v = el.dataset.v; d[f] = v;
   if (f === "goal") d.rate = defaultRate(v);
   if (f === "trainAt") d.equipment = v === "gym" ? GYM.slice() : v === "home" ? ["chair","bands","dumbbells"] : [];
-  if (f === "lifestyle" && v === "road"){ d.trainAt = "none"; d.equipment = ["bands","chair"]; d.impact = Math.min(+d.impact, 2); }
+  if (f === "lifestyle"){ if (v === "road"){ d.trainAt = "none"; d.equipment = ["bands","chair"]; d.impact = Math.min(+d.impact, 2); d.activity = "light"; d.route ||= "otr"; } else if (d.activity === "light") d.activity = "moderate"; }
   render(); };
+A.wzGear = el => { const a = wz.d.gear, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzExcl = el => { const a = wz.d.exclude, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzEq = el => { const a = wz.d.equipment, i = a.indexOf(el.dataset.id); if (i >= 0) a.splice(i,1); else a.push(el.dataset.id); render(); };
 A.wzBack = () => { wz.step = Math.max(0, wz.step - 1); render(); };
@@ -87,13 +86,16 @@ document.addEventListener("submit", e => {
     if (!(hcm >= 100 && hcm <= 250)) return err("Enter your height.");
     if (!(+d.w > 0)) return err("Enter your weight.");
   }
+  if (wz.step === 1 && !d.lifestyle) return err("Pick the one that fits your work.");
   if (wz.step < WZ_STEPS.length - 1){ wz.step++; render(); window.scrollTo(0,0); return; }
   const hcm = d.units === "us" ? ((+d.ft||0)*12 + (+d.inch||0))*2.54 : +d.cm, kg = d.units === "us" ? +d.w/LB : +d.w;
   const p = Object.assign(defaultProfile(), {name:d.name.trim().slice(0,40), sex:d.sex, age:+d.age, units:d.units, heightCm:hcm, weightKg:kg, activity:d.activity, goal:d.goal, rate:d.goal === "maintain" ? 0 : +d.rate,
     diet:d.diet, faith:d.faith, faithVeg:!!d.faithVeg, exclude:d.exclude.slice(), budget:+d.budget || 0, household:{adults:clamp(+d.adults||1,1,8), kids:clamp(+d.kids||0,0,8)},
     trainAt:d.trainAt, equipment:d.equipment.slice(), daysPerWeek:+d.daysPerWeek, level:d.level, impact:+d.impact, lifestyle:d.lifestyle, shiftStart:d.shiftStart, shiftLen:+d.shiftLen || 12,
-    planSeed:1 + Math.floor(Math.random()*999), startDate:todayKey(), adaptive:true});
+    planSeed:1 + Math.floor(Math.random()*999), startDate:todayKey(), adaptive:true,
+    driver: d.lifestyle === "road" ? {route: d.route || "otr", gear: d.gear.slice()} : null});
   state = freshState(p); state.meta.welcome = false;
+  if (p.driver && d.dotExp) dotState().certExpires = d.dotExp;
   persist("profile","food","training","health"); wz.step = 0; wz.d = null; go("today"); toast("Your plan is ready.");
   setTimeout(() => openSheet("welcomeNext"), 900);
 }, true);
@@ -166,4 +168,18 @@ function roadCard(){
     <p class="small muted">Today's meals are all things you can grab at a truck stop, gas station or deli. No kitchen needed.</p>
     <div class="row"><a class="btn sm" href="https://www.google.com/maps/search/grocery+store+near+me" target="_blank" rel="noopener">Grocery stores near me</a><a class="btn sm" href="https://www.google.com/maps/search/truck+stop+near+me" target="_blank" rel="noopener">Truck stops near me</a><button class="btn sm" data-act="qWorkout">Start cab-side workout</button></div>
     <p class="small muted">Walking tip: 10 minutes of laps around the lot is about 1,000 steps. Do one at every stop.</p></section>`;
+}
+
+/* the "Your work" step: truck drivers get their own setup right after the basics */
+const ROUTES = {otr:["Over the road","Out a week or more, sleeping in the truck"], regional:["Regional","Out a few nights a week"], local:["Local / home daily","Home most nights, eating on the road during the day"], team:["Team driving","Sharing the truck, odd sleep hours"]};
+const CAB_GEAR = [["fridge","Cab fridge or cooler"],["heat","Microwave or 12V lunchbox cooker"],["blender","Blender (inverter)"]];
+function wzWork(d, big){
+  return `<h2>What kind of work do you do?</h2><p class="muted">We build your meals, meal times and workouts around it.</p>
+    <div class="choices">${big("lifestyle","road","Truck driver","OTR, regional, local or team")}${big("lifestyle","shift","Shift work","Nights, rotating or long shifts")}${big("lifestyle","standard","Regular schedule","Days, home most nights")}</div>
+    ${d.lifestyle === "road" ? `<div class="stack drvsetup"><span class="eyebrow">Your route</span><div class="choices">${Object.entries(ROUTES).map(([k,[t,sub]]) => big("route", k, t, sub)).join("")}</div>
+      <span class="eyebrow">What's in your cab?</span><div class="chips">${CAB_GEAR.map(([k,l]) => `<button type="button" class="chip" data-act="wzGear" data-id="${k}" aria-pressed="${d.gear.includes(k)}">${l}</button>`).join("")}</div>
+      <p class="small muted">${d.gear.length ? "We'll add meals you can prep at home and keep or heat in the truck, alongside truck-stop picks." : "No gear? No problem: every meal is something you can buy at a truck stop, travel center or deli."}</p>
+      <label class="f" style="max-width:260px">DOT medical card expires <span class="muted">(optional)</span><input data-wz="dotExp" type="date" value="${esc(d.dotExp)}"></label>
+      <p class="small muted">We'll count down to your physical and help you get your blood pressure, sleep and blood sugar ready for it.</p></div>` : ""}
+    ${d.lifestyle === "shift" ? `<div class="fields"><label class="f">Shift starts<input data-wz="shiftStart" type="time" value="${d.shiftStart}"></label><label class="f">Shift length (hours)<input data-wz="shiftLen" type="number" min="4" max="16" value="${d.shiftLen}"></label></div><p class="small muted">Meal times and reminders line up with your shift instead of the clock.</p>` : ""}`;
 }
