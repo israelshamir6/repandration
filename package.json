@@ -5,6 +5,11 @@
   "dependencies": {
     "@netlify/database": "latest",
     "@netlify/functions": "latest",
-    "stripe": "^18.0.0"
+    "stripe": "^18.0.0",
+    "web-push": "^3.6.7",
+    "@netlify/blobs": "latest"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }

@@ -36,7 +36,7 @@ Until Stripe keys are added, anyone who signs up gets in free (handy for testing
    - `STRIPE_WEBHOOK_SECRET` = your signing secret (mark as secret)
 6. Run `npx netlify-cli deploy --prod` again (or Deploys → Trigger deploy).
 
-Price ($12.99/month) and trial (7 days, once per customer) are set in `netlify/functions/api.mts` (`PRICE_CENTS`, `TRIAL_DAYS`).
+Plans and prices live in `netlify/lib/shared.mts` (`PLANS`): Monthly $15.99, Annual $120, Family $24.99/mo or $199/yr, Coach $29.99/mo (25 clients), Coach Unlimited $49.99/mo. Stripe prices are created automatically the first time each plan is bought. The 7-day trial (once per customer) is `TRIAL_DAYS` in `netlify/functions/api.mts`.
 
 Test with card `4242 4242 4242 4242` while using `sk_test_` keys, then swap to live keys.
 
@@ -55,3 +55,16 @@ Fill in the bracketed items in `public/terms.html` and `public/privacy.html` and
 ## Updating the app later
 
 Replace files, then run `npx netlify-cli deploy --prod` from this folder.
+
+## Optional switches (Netlify environment variables, Production)
+
+| Variable | What it turns on |
+|---|---|
+| `ANTHROPIC_API_KEY` | AI photo & "say it" food logging, and the safety check that coach videos must pass before they're published |
+| `FDC_API_KEY` | Full-speed USDA food search (free key from api.data.gov/signup; without it a rate-limited demo key is used) |
+| `RESEND_API_KEY` + `MAIL_FROM` | Welcome, trial-ending, family-invite and password-reset emails |
+| `STRIPE_TAX` = `on` | Stripe Tax on checkout (turn on Stripe Tax and add your registrations in the Stripe dashboard first) |
+
+## Editing the app
+
+The app is built from `src/`: `src/app.html` (core app), `src/ext/*.js` + `ext.css` (features added on top), `src/gate.html` (landing & sign-up) and `src/shim.js`. Run `python3 src/build.py` to regenerate `public/index.html`, then commit. `src/tools/build_exercises.py` rebuilds the exercise library; `src/tools/fetch-wger.mjs` runs on every Netlify build to pull open-licensed wger exercises, images and videos.

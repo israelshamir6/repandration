@@ -1,0 +1,156 @@
+<style>
+.gate{position:fixed;inset:0;z-index:80;background:var(--bg);overflow:auto}
+.gate[hidden]{display:none}
+.gwrap{max-width:1140px;margin:0 auto;padding:22px 20px 60px;display:flex;flex-direction:column;gap:34px}
+.gnav{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ghero{display:grid;grid-template-columns:1.15fr .85fr;gap:30px;align-items:center;padding-top:10px}
+.ghero h1{font-size:clamp(2.3rem,5.4vw,3.9rem);line-height:1.0;font-weight:900}
+.ghero h1 span{color:var(--accent)}
+.ghero p.lead{font-size:1.12rem;color:var(--muted);margin-top:14px;max-width:54ch}
+.gcta{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.gcta .btn{padding:12px 20px;font-size:1rem}
+.gpoints{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:16px;font-size:.88rem;color:var(--muted)}
+.gpoints span::before{content:"✓ ";color:var(--good);font-weight:800}
+.gphone{border-radius:28px;border:1px solid var(--line);background:var(--surface);box-shadow:0 30px 60px -30px rgba(0,0,0,.35);padding:18px;display:flex;flex-direction:column;gap:12px}
+.gphone .tile{border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;gap:10px;align-items:center}
+.gphone .tile b{display:block}
+.gphone .tile small{color:var(--muted)}
+.gsec h2{font-size:clamp(1.5rem,3vw,2.1rem);font-weight:850;text-align:center}
+.gsec>p{color:var(--muted);text-align:center;max-width:62ch;margin:8px auto 0}
+.gfeat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:20px}
+.gfeat .card h3{margin-bottom:6px;font-size:1.02rem}
+.gfeat .card .qi{margin-bottom:10px}
+.gplans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:20px;align-items:stretch}
+.gplan{display:flex;flex-direction:column;gap:10px}
+.gplan.best{border:2px solid var(--accent)}
+.gplan ul{margin:0;padding-left:18px;line-height:1.75;font-size:.9rem;flex:1}
+.gtoggle{display:flex;justify-content:center;margin-top:16px}
+.gform{max-width:440px;width:100%;margin:0 auto}
+.gform .fields{grid-template-columns:1fr}
+.gform input[type=email],.gform input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-size:.95rem}
+.gerr{color:var(--bad);font-size:.88rem;min-height:1.2em}
+.gfoot{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;color:var(--muted);justify-content:center;text-align:center}
+.gfoot a{color:var(--muted)}
+.gwho{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.gwho span{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:600}
+@media (max-width:900px){.ghero,.gplans{grid-template-columns:1fr}.gfeat{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.gfeat{grid-template-columns:1fr}}
+</style>
+<div class="gate" id="gate" hidden><div class="gwrap" id="gateBody"></div></div>
+<script>
+(function(){
+  const $g = s => document.querySelector(s);
+  const logo = `<span class="brand" style="padding:0"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect width="30" height="30" rx="8" fill="var(--accent)"/><path d="M8 10v10M11 12v6M22 10v10M19 12v6M11 15h8" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"/></svg><b>Rep &amp; Ration</b></span>`;
+  const foot = `<div class="gfoot"><a href="/support.html">Help & FAQ</a><a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a><a href="mailto:Repandration27@gmail.com">Contact</a><span>Rep &amp; Ration gives general fitness and nutrition guidance, not medical advice. Talk to your doctor before starting a new diet or exercise program.</span></div>`;
+  const P = {
+    individual_month:{n:"Rep & Ration", price:"$15.99", per:"month", note:"Billed monthly"},
+    individual_year:{n:"Rep & Ration", price:"$120", per:"year", note:"$10/month · save $71.88 a year"},
+    family_month:{n:"Family", price:"$24.99", per:"month", note:"You + 4 people"},
+    family_year:{n:"Family", price:"$199", per:"year", note:"You + 4 people · save $100.88 a year"},
+    coach_month:{n:"Coach", price:"$29.99", per:"month", note:"Up to 25 clients"},
+    coach_unlimited_month:{n:"Coach Unlimited", price:"$49.99", per:"month", note:"Unlimited clients"}
+  };
+  let annual = true, plan = "individual_year", gmode = "signup";
+  try { const q = new URLSearchParams(location.search).get("plan"); if (q && P[q]) plan = q; } catch {}
+  const ic = n => `<span class="qi">${(typeof ICON !== "undefined" && ICON[n]) || ""}</span>`;
+  const form = mode => {
+    const pl = P[plan];
+    if (mode === "signup") return `<form class="card stack gform" data-gate="signup"><h2>Start your 7-day free trial</h2>
+      <div class="row" style="justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:10px 12px"><span><b>${pl.n}</b><br><small class="muted">${pl.note}</small></span><span><b>${pl.price}</b><small class="muted">/${pl.per}</small></span></div>
+      <p class="small muted">Next you'll add a card with Stripe. Nothing is charged today. After 7 days your card is billed ${pl.price}, then every ${pl.per}. Cancel any time before the trial ends and you won't be charged.</p>
+      <label class="f">First name<input id="gName" type="text" autocomplete="given-name" maxlength="40"></label>
+      <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
+      <label class="f">Password (8+ characters)<input id="gPw" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="check" style="border:0"><input id="gAgree" type="checkbox" required><span style="text-decoration:none;color:var(--ink)">I agree to the <a href="/terms.html" target="_blank">Terms</a> and <a href="/privacy.html" target="_blank">Privacy Policy</a>, and understand the app gives general fitness guidance, not medical advice.</span></label>
+      <div class="gerr" id="gErr"></div><button class="btn primary">Create account</button>
+      <p class="small muted">Already have an account? <a href="#" data-gmode="login">Log in</a> · Added to a family plan? Sign up with the email you were added with. No card needed.</p></form>`;
+    if (mode === "login") return `<form class="card stack gform" data-gate="login"><h2>Log in</h2>
+      <label class="f">Email<input id="gEmail" type="email" autocomplete="email" required></label>
+      <label class="f">Password<input id="gPw" type="password" autocomplete="current-password" required></label>
+      <div class="gerr" id="gErr"></div><button class="btn primary">Log in</button>
+      <p class="small muted"><a href="#" data-gmode="forgot">Forgot password?</a> · New here? <a href="#" data-gmode="signup">Start a free trial</a></p></form>`;
+    if (mode === "forgot") return `<form class="card stack gform" data-gate="forgot"><h2>Reset your password</h2><label class="f">Email<input id="gEmail" type="email" required></label><div class="gerr" id="gErr"></div><button class="btn primary">Email me a reset link</button><p class="small muted"><a href="#" data-gmode="login">Back to log in</a></p></form>`;
+    return `<form class="card stack gform" data-gate="reset"><h2>Choose a new password</h2><label class="f">New password (8+ characters)<input id="gPw" type="password" minlength="8" required></label><div class="gerr" id="gErr"></div><button class="btn primary">Save password</button></form>`;
+  };
+  const plansHTML = (pick) => {
+    const ind = annual ? "individual_year" : "individual_month", fam = annual ? "family_year" : "family_month";
+    const card = (k, title, best, items, k2) => `<div class="card gplan ${best ? "best" : ""}">${best ? `<span class="pill low" style="align-self:flex-start">Most popular</span>` : ""}<h3>${title}</h3>
+      <div class="row" style="align-items:baseline"><span class="big" style="font-size:2.4rem">${P[k].price}</span><span class="muted">/${P[k].per}</span></div><p class="small muted">${P[k].note}</p>
+      ${k2 ? `<p class="small">or <b>${P[k2].price}/${P[k2].per}</b> · ${P[k2].note}</p>` : ""}
+      <ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>
+      <button class="btn ${best ? "primary" : ""}" data-gplan="${k}">${pick ? "Choose" : "Start free trial"}</button>${k2 ? `<button class="btn sm ghost" data-gplan="${k2}">${pick ? "Choose" : "Start"} ${P[k2].n}</button>` : ""}</div>`;
+    return `<div class="gtoggle"><div class="seg"><button data-gannual="0" aria-pressed="${!annual}">Monthly</button><button data-gannual="1" aria-pressed="${annual}">Annual · save up to 37%</button></div></div>
+      <div class="gplans">${card(ind, "Just you", true, ["Adaptive calorie & macro targets","Barcode, photo & voice food logging","Meal plans for every diet & faith","1,000+ exercises with demos","Buddies, reminders, progress"])}
+      ${card(fam, "Family", false, ["Everything in Rep & Ration","You plus 4 people, each with their own account","Meal prep & groceries scaled for the household","One bill"])}
+      ${card("coach_month", "Coach", false, ["Your own full membership","Client dashboard: meals, macros, workouts, weight","Message clients in the app","Clients keep their own membership"], "coach_unlimited_month")}</div>
+      <p class="small muted" style="text-align:center;margin-top:10px">7 days free on any plan · card required · cancel any time before day 8 and you pay nothing</p>`;
+  };
+  function landing(){
+    const feats = [["search","Log food your way","Search millions of foods from USDA and Open Food Facts, scan a barcode, snap a photo or just say what you ate."],
+      ["progress","Targets that adapt","Every week we compare what you ate with your weight trend, learn your real burn and adjust your calories, like having a coach do the math."],
+      ["plan","Menus for every life","Weight loss, muscle gain, keto, vegan, gluten-free and allergy-safe meals, plus halal, kosher, Daniel Fast, Lent, Ramadan and more."],
+      ["workouts","1,000+ exercises","Home, calisthenics, dumbbells, kettlebells, bands and full gym, each with how-to steps and a demo. Workouts that add weight when you're ready."],
+      ["cart","Budget meal plans","Set a weekly budget and get menus that fit, with cost per meal and a grocery list you can send to your cart in one tap."],
+      ["truck","Built for real schedules","Shift-worker meal timing, and a trucker mode with no-kitchen meals from truck stops and cab-side workouts."],
+      ["coach","Coach mode","Trainers see clients' meals, macros, workouts and weight in one dashboard and message them in the app."],
+      ["buddies","Family & buddies","One family plan for the whole house, plus groups to cheer on friends and co-workers."],
+      ["bell","Reminders & app install","Add it to your home screen like an app, with reminders for meals, workouts and weigh-ins."]];
+    return `<div class="gnav">${logo}<div class="row"><a class="btn sm ghost" href="/support.html">Help</a><button class="btn sm" data-gmode="login">Log in</button><button class="btn sm primary" data-gscroll>Start free trial</button></div></div>
+      <div class="ghero"><div><span class="eyebrow">Calorie counter · meal planner · workout app</span><h1>Train it. Eat it. <span>Track both.</span></h1>
+        <p class="lead">One app that plans your meals and workouts around your goal, learns your real metabolism every week, and fits your budget, your faith and your schedule.</p>
+        <div class="gcta"><button class="btn primary" data-gscroll>Start your 7-day free trial</button><button class="btn" data-gmode="login">Log in</button></div>
+        <div class="gpoints"><span>$0 today</span><span>From $10/month billed yearly</span><span>Cancel any time</span></div></div>
+        <div class="gphone"><span class="eyebrow">Today</span>
+          <div class="tile">${ic("nutrition")}<div><b>1,840 kcal target</b><small>Adapted from your last 3 weeks</small></div></div>
+          <div class="tile">${ic("scan")}<div><b>Scan, snap or say it</b><small>"2 eggs, toast and coffee"</small></div></div>
+          <div class="tile">${ic("workouts")}<div><b>Upper strength · 45 min</b><small>Bench press: add 5 lb today</small></div></div>
+          <div class="tile">${ic("cart")}<div><b>Groceries for the week</b><small>About $64 for 2 people</small></div></div></div></div>
+      <div class="gsec"><h2>Everything in one membership</h2><p>No separate calorie counter, workout app and meal planner. It's all here, and it all works together.</p>
+        <div class="gfeat">${feats.map(f => `<div class="card">${ic(f[0])}<h3>${f[1]}</h3><p class="small muted">${f[2]}</p></div>`).join("")}</div>
+        <div class="gwho">${["Weight loss","Muscle gain","Keto & low-carb","Vegan & vegetarian","Food allergies","Halal","Kosher","Daniel Fast","Ramadan","Lent","Truckers","Night shift","Families","Personal trainers","Busy parents","On a budget"].map(x => `<span>${x}</span>`).join("")}</div></div>
+      <div class="gsec" id="gPlans"><h2>Simple pricing</h2><p>Start free for 7 days on any plan.</p>${plansHTML(false)}</div>
+      <div id="gForm">${form(gmode)}</div>${foot}`;
+  }
+  function show(view, u){
+    const g = $g("#gate"), b = $g("#gateBody"); g.hidden = false;
+    if (view === "landing") b.innerHTML = landing();
+    else if (view === "reset") b.innerHTML = `<div class="gnav">${logo}</div>${form("reset")}${foot}`;
+    else b.innerHTML = `<div class="gnav">${logo}<button class="btn sm" data-glogout>Log out</button></div>
+      <div class="gsec"><h2>${u.sub.canTrial ? "Pick a plan to start your free trial" : "Welcome back. Pick a plan to reactivate"}</h2><p>${u.sub.canTrial ? "Nothing is charged today. After 7 days your card is billed for the plan you choose. Cancel any time before then and you pay nothing." : "Your subscription isn't active. Choose a plan to get back to your plan, logs and groups."}</p>
+      <div class="gerr" id="gErr" style="text-align:center"></div>${plansHTML(true)}</div>
+      <p class="small muted" style="text-align:center">Payments are handled securely by Stripe. Added to a family plan? Make sure you signed up with the email the plan owner added.</p>${foot}`;
+  }
+  const err = m => { const e = $g("#gErr"); if (e) e.textContent = m; };
+  async function checkout(){ try { const j = await RR_API("billing/checkout", {plan}); location.href = j.url; } catch (e){ err(e.message); } }
+  let mode = "landing";
+  document.addEventListener("click", async e => {
+    if (!e.target.closest("#gate")) return;
+    const m = e.target.closest("[data-gmode]"); if (m){ e.preventDefault(); gmode = m.dataset.gmode; const f = $g("#gForm"); if (f){ f.innerHTML = form(gmode); f.scrollIntoView({behavior:"smooth", block:"center"}); } else show("landing"); return; }
+    if (e.target.closest("[data-gscroll]")){ const t = $g("#gPlans"); if (t) t.scrollIntoView({behavior:"smooth"}); return; }
+    const a = e.target.closest("[data-gannual]"); if (a){ annual = a.dataset.gannual === "1"; plan = annual ? plan.replace("_month", "_year").replace("coach_year", "coach_month").replace("coach_unlimited_year", "coach_unlimited_month") : plan.replace("_year", "_month"); if (mode === "paywall") show("paywall", window.RR_USER); else { const y = scrollY; show("landing"); scrollTo(0, y); } return; }
+    const p = e.target.closest("[data-gplan]"); if (p){ plan = p.dataset.gplan; if (mode === "paywall"){ p.disabled = true; return checkout(); } gmode = "signup"; const f = $g("#gForm"); f.innerHTML = form("signup"); f.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { const n = $g("#gName"); if (n) n.focus({preventScroll:true}); }, 400); return; }
+    if (e.target.closest("[data-glogout]")) { await RR_API("auth/logout", {}).catch(() => {}); location.href = "/"; }
+  });
+  document.addEventListener("submit", async e => {
+    const f = e.target.closest("[data-gate]"); if (!f) return; e.preventDefault();
+    const t = f.dataset.gate, v = id => ($g(id) || {}).value || "";
+    const btn = f.querySelector("button"); btn.disabled = true; err("");
+    try {
+      if (t === "signup"){ const j = await RR_API("auth/signup", {name: v("#gName"), email: v("#gEmail"), password: v("#gPw")}); if (j.user.sub.billing && !j.user.sub.active) return checkout(); location.href = "/"; }
+      else if (t === "login"){ await RR_API("auth/login", {email: v("#gEmail"), password: v("#gPw")}); location.href = "/"; }
+      else if (t === "forgot"){ await RR_API("auth/reset-request", {email: v("#gEmail")}); err("If that email has an account, a reset link is on its way."); }
+      else if (t === "reset"){ await RR_API("auth/reset", {token: new URLSearchParams(location.search).get("reset"), password: v("#gPw")}); location.href = "/?reset=done"; }
+    } catch (x){ err(x.message); }
+    btn.disabled = false;
+  });
+  window.RR_ME.then(u => {
+    window.RR_USER = u;
+    const qs = new URLSearchParams(location.search);
+    if (qs.get("reset") && qs.get("reset") !== "done") return show("reset");
+    if (!u){ mode = "landing"; return show("landing"); }
+    if (!u.sub.active){ mode = "paywall"; return show("paywall", u); }
+    if (qs.get("checkout") === "success") setTimeout(() => { try { toast("You're in. Your free trial has started."); } catch {} }, 800);
+    if (qs.has("checkout") || qs.has("reset") || qs.has("plan")) history.replaceState(null, "", "/" + location.hash);
+  });
+})();
+</script>

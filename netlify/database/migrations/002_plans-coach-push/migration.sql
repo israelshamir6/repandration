@@ -1,0 +1,65 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tz TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_sent BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_mail_sent BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS kv (
+  k TEXT PRIMARY KEY,
+  v JSONB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS family_members (
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (owner_id, email)
+);
+CREATE INDEX IF NOT EXISTS family_members_email ON family_members(email);
+
+CREATE TABLE IF NOT EXISTS coach_codes (
+  code TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS coach_links (
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  share JSONB NOT NULL DEFAULT '{"food":true,"workouts":true,"weight":true}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (coach_id, client_id)
+);
+CREATE INDEX IF NOT EXISTS coach_links_client ON coach_links(client_id);
+CREATE TABLE IF NOT EXISTS coach_msgs (
+  id BIGSERIAL PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  by_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS coach_msgs_pair ON coach_msgs(coach_id, client_id, created_at);
+
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id);
+CREATE TABLE IF NOT EXISTS reminders (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  tz TEXT NOT NULL DEFAULT 'America/Los_Angeles',
+  items JSONB NOT NULL DEFAULT '[]',
+  sent JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS food_cache (
+  k TEXT PRIMARY KEY,
+  data JSONB NOT NULL,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS ai_usage (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  day DATE NOT NULL,
+  n INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, day)
+);
