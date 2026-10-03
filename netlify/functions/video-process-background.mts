@@ -60,7 +60,7 @@ export default async (req: Request) => {
     for (const f of files) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: (await readFile(join(dir, f))).toString("base64") } });
     content.push({ type: "text", text: `Title: ${v.title}\nCategory: ${VIDEO_CATS[v.category] || v.category}\nDescription: ${v.description || "(none)"}` });
     const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json", ...(Netlify.env.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": Netlify.env.get("ANTHROPIC_WORKSPACE_ID") as string } : {}) },
       body: JSON.stringify({ model: Netlify.env.get("AI_MODEL") || "claude-haiku-4-5-20251001", max_tokens: 300, system: MOD_PROMPT, messages: [{ role: "user", content }] })
     }).catch(() => null);
     const j: any = r ? await r.json().catch(() => ({})) : {};
